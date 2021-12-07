@@ -1,0 +1,152 @@
+---
+title: "Final Project"
+author: "Cypress Marrs, Briana Cervantes"
+date: "12/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r initial}
+# Libraries -----------------
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(sf)
+library(tidycensus)
+library(tidyverse)
+library(tigris)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+
+options(tigris_class = "sf")
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+palette5 <- c("#eff3ff","#bdd7e7","#6baed6","#3182bd","#08519c")
+palette4 <- c("#D2FBD4","#92BCAB","#527D82","#123F5A")
+palette2 <- c("#6baed6","#08519c")
+```
+``` {r datatrains}
+# Data -----------
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/faf21b758b644d975bb7aa67c5687a38374c05b7/data/2019_01.csv?token=AVSVPET277ZFADOVJ6VXJ2TBWPIGW")
+feb2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/faf21b758b644d975bb7aa67c5687a38374c05b7/data/2019_02.csv?token=AVSVPEW4NWROQR43GFRYKJTBWPIL4")
+mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/faf21b758b644d975bb7aa67c5687a38374c05b7/data/2019_03.csv?token=AVSVPERDSFIVXOGEUPPJRPTBWPIOI")
+weather.Data <- 
+  riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
+```
+
+```{r wrangledate}
+njtransitdf <- rbind(jan2019, feb2019, mar2019)
+
+
+njtransitdf <- njtransitdf %>% 
+  mutate(scheduled_time_dt = as_datetime(scheduled_time),
+         actual_time_dt = as_datetime(actual_time),
+         delay_dt = seconds(as.integer(delay_minutes*60)), 
+         intervalhour = floor_date(scheduled_time_dt, unit= "hour"),
+         week = week(intervalhour)) %>%
+  na.omit(delay_dt)
+
+```
+```{r stations}
+stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
+
+stoplocations <- stoplocations %>%
+  st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+```
+```{r template}
+train.template <- 
+  filter(njtransitdf, week %in% c(1: 10))
+
+length(unique(train.template$intervalhour)) * length(unique(train.template$line)) * length(unique(train.template$from))
+```
+```{r studypanel}
+study.panel <- 
+  expand.grid(intervalhour = unique(train.template$intervalhour), 
+              from = unique(train.template$from))#,
+              #line= unique(train.template$line))
+              
+nrow(study.panel)    
+
+```
+```{r trainpanel}
+train.panel <- 
+  train.template %>%
+    right_join(study.panel) %>% 
+      group_by(intervalhour, from)%>%
+#, line) 
+
+      summarize(late = mean(delay_dt, na.rm=T)) %>%
+  mutate(day= wday(intervalhour),
+        late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
+
+```
+``` {r dataweather}
+# Data -----------
+weather.Data <- 
+  riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
+
+weather.Panel <-  
+  weather.Data %>%
+    mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
+    replace(is.na(.), 0) %>%
+    mutate(interval60 = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(week = week(interval60),
+           dotw = wday(interval60, label=TRUE)) %>%
+    group_by(interval60) %>%
+    summarize(Temperature = max(tmpf),
+              Percipitation = sum(p01i),
+              Wind_Speed = max(sknt)) %>%
+    mutate(Temperature = ifelse(Temperature == 0, 42, Temperature)) 
+
+#Bring in other data sources and join in legible ways that will make data useable 
+```
+
+```{r lags}
+train.panel <- 
+  train.panel %>% 
+    arrange(line, interval15) %>% 
+    group_by(line) %>% 
+    mutate(lagHour = dplyr::lag(late,1),
+           lag2Hours = dplyr::lag(late,2),
+           lag3Hours = dplyr::lag(late,3),
+           lag4Hours = dplyr::lag(late,4),
+           lag12Hours = dplyr::lag(late,12),
+           lag1day = dplyr::lag(late,24)) %>% 
+   ungroup()
+
+```
+
+```{r joineddf}
+train.weather.panel <- merge(x= train.panel, y= weather.Data, by.x= 'intervalhour', by.y= 'interval60', all.x= T)
+```
+
+OBJECTIVE: Create regression that will predict # of minutes late a train line will be with information available 2 hours ahead of time  —— MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
+ 
+```{r explore}
+Do exploratory analysis to understand which variables will be useful features
+inculde some number of these in our presentation and write up 
+```
+
+```{r features}
+Build features
+Parameterizing lines: i.e. what line is it on 
+Spatial fixed effect, characteristics of stations or so heavily co-linear
+How central something is 
+Particular lines have their own issues 
+Use case: how do you set up your model—a particular train, a particular time, particular place 
+Level of specificity the use case demands 
+Scheduled arrival time is a line → 
+
+```
+```{r model}
+Split data: train on 2 months, test on 2 weeks
+Process modeling 
+```
+```{r validation}
+````
