@@ -5,6 +5,50 @@ date: "12/3/2021"
 output: html_document
 ---
 
+# GOALS
+
+-   is it late over 2 mins y/n LOGISTiC
+
+## model put ins
+
+-   lag time
+
+-   time of day (at least two hours out)
+
+-   line
+
+-   station pickup (diff stations will be treated as a cat variable)
+
+-   weather data
+
+## model outputs 
+
+-   is the train going to be late over 2 mins. at pickup station? Y/N
+
+## lines we'll be working with
+
+## Graphics - deliverable
+
+-   Y/N outcomes for any variables
+
+## Codewise to do, next steps: 
+
+-   choose two lines
+
+-   merge the weather
+
+    -   use this as a numeric variable at first
+
+-   merge stop location
+
+    -   each stop as cat variable
+
+-   at least get the code logistic regression
+
+-   last step visuals
+
+-   last last step revise, feat engineer
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -30,7 +74,8 @@ palette5 <- c("#eff3ff","#bdd7e7","#6baed6","#3182bd","#08519c")
 palette4 <- c("#D2FBD4","#92BCAB","#527D82","#123F5A")
 palette2 <- c("#6baed6","#08519c")
 ```
-``` {r datatrains}
+
+```{r datatrains}
 # Data -----------
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/faf21b758b644d975bb7aa67c5687a38374c05b7/data/2019_01.csv?token=AVSVPET277ZFADOVJ6VXJ2TBWPIGW")
@@ -53,19 +98,27 @@ njtransitdf <- njtransitdf %>%
   na.omit(delay_dt)
 
 ```
+
 ```{r stations}
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
 stoplocations <- stoplocations %>%
   st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 ```
+
 ```{r template}
+
+## Filters down to Week 1- 10
+## Train on 8 test on 2 weeks 
 train.template <- 
-  filter(njtransitdf, week %in% c(1: 10))
+  filter(njtransitdf, week %in% c(1: 10))#could filter here for lines
 
 length(unique(train.template$intervalhour)) * length(unique(train.template$line)) * length(unique(train.template$from))
 ```
+
 ```{r studypanel}
+
+## 
 study.panel <- 
   expand.grid(intervalhour = unique(train.template$intervalhour), 
               from = unique(train.template$from))#,
@@ -74,19 +127,25 @@ study.panel <-
 nrow(study.panel)    
 
 ```
+
 ```{r trainpanel}
 train.panel <- 
   train.template %>%
     right_join(study.panel) %>% 
       group_by(intervalhour, from)%>%
-#, line) 
+#, line) add to the train.panel once add lines to study.panel
+  
+  # ^^ replace NA with zero 
 
       summarize(late = mean(delay_dt, na.rm=T)) %>%
   mutate(day= wday(intervalhour),
         late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
 
+#leave this for potential use as a cat. 
+
 ```
-``` {r dataweather}
+
+```{r dataweather}
 # Data -----------
 weather.Data <- 
   riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
@@ -105,12 +164,14 @@ weather.Panel <-
     mutate(Temperature = ifelse(Temperature == 0, 42, Temperature)) 
 
 #Bring in other data sources and join in legible ways that will make data useable 
+
+
 ```
 
 ```{r lags}
 train.panel <- 
   train.panel %>% 
-    arrange(line, interval15) %>% 
+    arrange(line, intervalhour) %>% 
     group_by(line) %>% 
     mutate(lagHour = dplyr::lag(late,1),
            lag2Hours = dplyr::lag(late,2),
@@ -124,10 +185,12 @@ train.panel <-
 
 ```{r joineddf}
 train.weather.panel <- merge(x= train.panel, y= weather.Data, by.x= 'intervalhour', by.y= 'interval60', all.x= T)
+
+## get it merge, got set up how it's set up in the book, it should work but investigate
 ```
 
-OBJECTIVE: Create regression that will predict # of minutes late a train line will be with information available 2 hours ahead of time  —— MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
- 
+OBJECTIVE: Create regression that will predict \# of minutes late a train line will be with information available 2 hours ahead of time ------ MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
+
 ```{r explore}
 Do exploratory analysis to understand which variables will be useful features
 inculde some number of these in our presentation and write up 
@@ -144,9 +207,11 @@ Level of specificity the use case demands
 Scheduled arrival time is a line → 
 
 ```
+
 ```{r model}
 Split data: train on 2 months, test on 2 weeks
 Process modeling 
 ```
+
 ```{r validation}
-````
+```
