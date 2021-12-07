@@ -5,9 +5,18 @@ library(lubridate)
 library(sf)
 library(tidyverse)
 library(tidycensus)
+library(cowplot) #for plotgrid
+library(fastDummies)
+library(spdep)
+library(caret)
 
-# Data ----------------------
+options(scipen=999)
+options(tigris_class = "sf")
 
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+## Census stuff that i have not incorporated ----
 # ACS VARS
 # B08006_011 : Estimate!!Total:!!Public transportation (excluding taxicab):!!Long-distance train or commuter rail
 # B08011_001 Estimate!!Total:  SEX OF WORKERS BY TIME OF DEPARTURE TO GO TO WORK 98
@@ -41,10 +50,6 @@ library(tidycensus)
 34019 	Hunterdon
 34031 	Passaic
 
-HHdata <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Transit_Survey/HH_Public_9-23-2013.csv?token=AVOS24IRLQXB4UFGE3WGXKDBWOHOU")
-
-
-data <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_02.csv?token=AVOS24LDA4AR5QJ46IKK3D3BWOPNG")
 
 
 var <- [""]
@@ -134,4 +139,101 @@ NJ_ACS19 <-
          year = "2018") %>%
   dplyr::select(-year, -Whites, -FemaleBachelors, -MaleBachelors, -TotalPoverty) 
 
+## NJ TRANSIT DATA ----------
 
+HHdata <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Transit_Survey/HH_Public_9-23-2013.csv?token=AVOS24IRLQXB4UFGE3WGXKDBWOHOU")
+
+
+data <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_02.csv?token=AVOS24LDA4AR5QJ46IKK3D3BWOPNG")
+
+
+## Explore ----
+data["delay_minutes"][is.na(data["delay_minutes"])] <- 0 # <------ make NAs in delay_minutes 0
+data["stop_sequence"][is.na(data["stop_sequence"])] <- 0 # <------ make NAs in delay_minutes 0
+
+GroupedLine<- data%>%dplyr::group_by(line)%>%summarise(LineAvgDelay = mean(delay_minutes), 
+                                                       MedianStopSeq = median(stop_sequence),
+                                                       MaxStopSeq = max(stop_sequence))
+  
+  ### left join 
+data.feat <- merge(x=data,y=GroupedLine,by="line",all.x=TRUE) 
+
+
+# think of variables:
+#     - origin penn station or no?
+#     - Cat what line? 
+#     - NUM: groupby by train id, get avg. delay 
+#     - Cat: middle stop? (stop sequence for line, my guess is that the  middle will be the most off time no idea why i think this)
+#     - NUM: how many stops? or CAT: Long train? Y??N
+
+  
+## get col names
+  boulder_subset_sf_cols <- data.frame(colnames((subset_boulder_sf)))
+
+#### The Dummy Variable Fn I'm using will autocmatically change all char data types to dummys 
+
+subset.feat <- data.feat[!duplicated(data.feat$line), ]
+  
+subset.feat <-subset.feat%>%dplyr::select(line, MaxStopSeq, LineAvgDelay, type)
+
+sapply(subset.feat, class)
+
+variablesofinterest <- fastDummies::dummy_cols(subset.feat) 
+
+variablesofinterest <- variablesofinterest%>%dplyr::select(-line)
+## Partion Code ----
+
+inTrain <-   variablesofinterest%>%createDataPartition(
+  y = paste(),
+  p = .75, list = FALSE)
+
+
+boulder.training <- roll_up_the_partition_please[inTrain,] 
+boulder.test <- roll_up_the_partition_please[-inTrain,]  
+
+
+## Linear Regression ----
+
+reg.train <- lm( ~ ., data = boulder.training %>% 
+                  dplyr::select(LNprice, 
+                                all_other_basements,
+                                IntWallDscr_Drywall,
+                                Roof_no_description,
+                                `designCodeDscr_1 Story - Ranch`,
+                                `HeatingDscr_Radiant Floor`,
+                                Ext_wall_stucco_strawbale_brick_blck,
+                                `district_Boulder Valley School District RE-2`,
+                                trail_nn3,
+                                LNlag,
+                                mainfloorSF,
+                                year,
+                                carStorageSF,
+                                pctBachelors,
+                                pollut_nn2,
+                                Age,
+                                MedHHInc
+                  ))
+
+
+bould_train_cols <- data.frame(colnames(boulder.training)) 
+
+
+## Predict 
+
+boulder.test <-
+  boulder.test %>%
+  mutate(LNSalePrice.Predict = predict(reg.train, boulder.test),
+         LNSalePrice.Error = LNSalePrice.Predict - LNprice,
+         LNSalePrice.AbsError = abs(LNSalePrice.Predict - LNprice),
+         LNSalePrice.APE = (abs(LNSalePrice.Predict - LNprice)) / LNSalePrice.Predict)
+
+boulder.test <-
+  boulder.test %>%
+  mutate(SalePrice.Predict = exp(LNSalePrice.Predict),
+         SalePrice.Error = SalePrice.Predict - dollarprice,
+         SalePrice.AbsError = abs(SalePrice.Predict - dollarprice),
+         SalePrice.APE = abs(SalePrice.Predict - dollarprice) / SalePrice.Predict)
+
+mean(boulder.test$SalePrice.AbsError, na.rm = T) # 139587.7 
+
+mean(boulder.test$SalePrice.APE, na.rm = T) #0.1719868
