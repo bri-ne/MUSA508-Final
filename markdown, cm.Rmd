@@ -53,7 +53,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r initial}
+```{r initial, include=FALSE, warning=FALSE, message=FALSE}
 # Libraries -----------------
 library(tidyr)
 library(dplyr)
@@ -77,9 +77,11 @@ library(gtsummary) #for table cause broom always f's everything up
 options(tigris_class = "sf")
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
-palette5 <- c("#eff3ff","#bdd7e7","#6baed6","#3182bd","#08519c")
-palette4 <- c("#D2FBD4","#92BCAB","#527D82","#123F5A")
-palette2 <- c("#6baed6","#08519c")
+
+palette4 <- c("#0C0E1D", "#7396D3", "#260A03", "#F8CD12")
+palette3 <- c("#0C0E1D", "#7396D3", "#260A03")
+palette2 <- c("#F8CD12", "#7396D3")
+
 ```
 
 ```{r datatrains}
@@ -239,22 +241,70 @@ trainIndex <- createDataPartition(train.weather.panel$y_numeric, p = .65,
 dataTrain <- train.weather.panel[ trainIndex,]
 dataTest  <- train.weather.panel[-trainIndex,]
 
-## First REG
+## First REG ## DID NOT WORK, "algorith did not converge, fitted probs numerically 0 or 1 occured"
 
+Model <- glm(y_numeric ~ .,
+                       data=dataTrain,     #### ALL VARS
+                       family="binomial" (link="logit"))
 Model1 <- glm(y_numeric ~ .,
-                        data=dataTrain,     #### Just getting rid of index
+                       data=dataTrain%>% 
+                          dplyr::select(-late, -late_catagorical),     #### GETTING RID OF ONES THAT THROW ERRORS
+                       family="binomial" (link="logit"))
+
+Model2<- glm(y_numeric ~ .,
+                        data=dataTrain %>% 
+                          dplyr::select(y_numeric, #late,
+                                        from,
+                                        lagHour, lag2Hours, lag3Hours, Percipitation, line), #### SOME VARS NEED INTERVAL HOUR THOugh
                         family="binomial" (link="logit"))
 
+Model3<- glm(y_numeric ~ .,
+                        data=dataTrain %>% 
+                          dplyr::select(y_numeric,
+                                        from, 
+                                        intervalhour,
+                                        lagHour, lag2Hours, lag3Hours), #### SOME VARS NEED INTERVAL HOUR THOugh
+                        family="binomial" (link="logit"))
+
+
+
+## after trying with the late param in model 2 i got the same error
 #summary(Model)
 
 summary1.table <- tbl_regression(Model1, exponentiate = TRUE)
 
+summary2.table <- tbl_regression(Model2, exponentiate = TRUE) #do not use, need interval hour
+
+summary3.table <- tbl_regression(Model3, exponentiate = TRUE)
+
+
+#PROBS
+
+
+## TEST PROBS **MODEL 3 --- 50% THRESH**
+
+testProbs3 <- data.frame(Outcome = as.factor(dataTest$y_numeric),
+                         Probs = predict(Model3, dataTest, type="response"))
+
+testProbs3 <- 
+  testProbs3 %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs3$Probs > 0.50 , 1, 0)))
 
 
 
+## TEST PROBS PLOT **MODEL 3 --- 50% THRESH**
+
+ ggplot(testProbs3, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Third Model: Distribution of Predicted Probabilities by Observed Outcome",
+       caption= "Fig.6") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")
 
 
-Process modeling 
 ```
 
 ```{r validation}
