@@ -78,9 +78,9 @@ options(tigris_class = "sf")
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
 
-palette4 <- c("#0C0E1D", "#7396D3", "#260A03", "#F8CD12")
+palette4 <- c("#260a03", "#f8cd12", "#a81010", "#f2fdff", "#93afdc", "#0c0e1d")
 palette3 <- c("#0C0E1D", "#7396D3", "#260A03")
-palette2 <- c("#F8CD12", "#7396D3")
+palette2 <- c("#260a03", "#a81010")
 
 ```
 
@@ -112,7 +112,7 @@ njtransitdf <- njtransitdf %>%
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
 stoplocations <- stoplocations %>%
-  st_as_sf(coords = c("ï..X", "Y"), crs =3424, agr = "constant") 
+  st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 ```
 
 ```{r template}
@@ -158,16 +158,12 @@ train.panel <- train.panel%>%summarize(late = mean(delay_dt, na.rm=T)) %>%
 
 ```{r dataweather}
 # Data -----------
-weather.Data <- 
-  riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
-
 weather.Panel <-  
   weather.Data %>%
     mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
     replace(is.na(.), 0) %>%
     mutate(intervalhour = ymd_h(substr(valid, 1, 13))) %>%
-    mutate(week = week(intervalhour),
-           dotw = wday(intervalhour, label=TRUE)) %>%
+    mutate(dotw = wday(intervalhour, label=TRUE)) %>%
     group_by(intervalhour) %>%
     summarize(Temperature = max(tmpf),
               Percipitation = sum(p01i),
@@ -180,8 +176,10 @@ weather.Panel <-
 ```
 
 ```{r lags}
-train.panel <- 
-  train.panel %>% 
+train.weather.panel <- merge(x= train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
+
+train.weather.panel <- 
+  train.weather.panel %>% 
     arrange(line, intervalhour) %>% 
     group_by(line) %>% 
     mutate(lagHour = dplyr::lag(late,1),
@@ -189,28 +187,50 @@ train.panel <-
            lag3Hours = dplyr::lag(late,3),
            lag4Hours = dplyr::lag(late,4),
            lag12Hours = dplyr::lag(late,12),
-           lag1day = dplyr::lag(late,24)) %>% 
+           lag1day = dplyr::lag(late,24),
+           lag2Hoursrain = dplyr::lag(Percipitation,2),
+           lag3Hoursrain = dplyr::lag(Percipitation,3),
+           lag4Hoursrain = dplyr::lag(Percipitation,4),
+           lag12Hoursrain = dplyr::lag(Percipitation,12),
+           lag1dayrain = dplyr::lag(Percipitation,24),
+           
+           lag2Hourstemp = dplyr::lag(Temperature,2),
+           lag3Hourstemp = dplyr::lag(Temperature,3),
+           lag4Hourstemp = dplyr::lag(Temperature,4),
+           lag12Hourstemp = dplyr::lag(Temperature,12),
+           lag1daytemp = dplyr::lag(Temperature,24),
+           
+           lag2Hourswind = dplyr::lag(Wind_Speed,2),
+           lag3Hourswind = dplyr::lag(Wind_Speed,3),
+           lag4Hourswind = dplyr::lag(Wind_Speed,4),
+           lag12Hourswind = dplyr::lag(Wind_Speed,12),
+           lag1daywind = dplyr::lag(Wind_Speed,24),
+           
+           week = week(intervalhour)) %>% 
    ungroup()
 
 
 
 ### Making all new NAs ZERO ~~~~
 
-train.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")][is.na(train.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")])] <- 0 
+train.weather.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag2Hoursrain", "lag3Hoursrain", "lag4Hoursrain", "lag12Hoursrain", "lag1dayrain", "lag2Hourstemp", "lag3Hourstemp", "lag4Hourstemp", "lag12Hourstemp", "lag1daytemp", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind")][is.na(train.weather.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag2Hoursrain", "lag3Hoursrain", "lag4Hoursrain", "lag12Hoursrain", "lag1dayrain", "lag2Hourstemp", "lag3Hourstemp", "lag4Hourstemp", "lag12Hourstemp", "lag1daytemp", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind")])] <- 0 
 
 ```
 
 ```{r joineddf}
-train.weather.panel <- merge(x= train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
-
-
+train.weather.panel<- train.weather.panel%>%mutate(y_numeric = ifelse(late < minutes(2), 0, 1))
 ```
 
 OBJECTIVE: Create regression that will predict \# of minutes late a train line will be with information available 2 hours ahead of time ------ MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
 
-```{r explore}
-#Do exploratory analysis to understand which variables will be useful features
-#inculde some number of these in our presentation and write up 
+```{r explorelag}
+train.weather.panel %>%
+  group_by(y_numeric) %>% 
+  summarize(Percipitation = mean(lag4Hourswind)) %>%
+    ggplot(aes(y_numeric, Percipitation)) + geom_bar(stat = "identity") +
+      labs(title="Does lateness vary with temperature two hours ahead?",
+           x="y_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
+      plotTheme() 
 ```
 
 ```{r features}
@@ -225,30 +245,30 @@ OBJECTIVE: Create regression that will predict \# of minutes late a train line w
 
 ```
 
-```{r model}
+```{r traintest}
 #first making a y-numeric for 1 late over 2 mins, and 0 for not late over 2mins
 
-train.weather.panel<- train.weather.panel%>%mutate(y_numeric = ifelse(late < minutes(2), 0, 1))
-
-
 #Split data: train on 2 months, test on 2 weeks
-
-## Partition
+## Partition --- changed this so that it is trainning on first 8 weeks, testing on last 2
 set.seed(2121)
-trainIndex <- createDataPartition(train.weather.panel$y_numeric, p = .65,
-                                  list = FALSE,
-                                  times = 1)
-dataTrain <- train.weather.panel[ trainIndex,]
-dataTest  <- train.weather.panel[-trainIndex,]
+dataTrain <- filter(train.weather.panel, week < 9)
+dataTest <- filter(train.weather.panel, week >= 9)
 
+
+```
+
+```{r model}
 ## First REG ## DID NOT WORK, "algorith did not converge, fitted probs numerically 0 or 1 occured"
 
-Model <- glm(y_numeric ~ .,
-                       data=dataTrain,     #### ALL VARS
-                       family="binomial" (link="logit"))
+#Model <- glm(y_numeric ~ .,
+#                       data=dataTrain,     #### ALL VARS
+#                       family="binomial" (link="logit"))
+
+#It makes sense that these ones would not work since the number of seconds it is late will correspond perfectly with whether or not it is late...
+
 Model1 <- glm(y_numeric ~ .,
                        data=dataTrain%>% 
-                          dplyr::select(-late, -late_catagorical),     #### GETTING RID OF ONES THAT THROW ERRORS
+                          dplyr::select(-late, -late_catagorical, -lagHour),     #### need to remove lagHour: otherwise we are making predictions based on information not available two hours out GETTING RID OF ONES THAT THROW ERRORS
                        family="binomial" (link="logit"))
 
 Model2<- glm(y_numeric ~ .,
@@ -267,7 +287,17 @@ Model3<- glm(y_numeric ~ .,
                         family="binomial" (link="logit"))
 
 
+Model4<- glm(y_numeric ~ .,
+                        data=dataTrain %>% 
+                          dplyr::select(y_numeric,
+                                        from, 
+                                        intervalhour,
+                                        lag1day, lag2Hours, lag3Hours,
+                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line), #### SOME VARS NEED INTERVAL HOUR THOugh
+                        family="binomial" (link="logit"))
+```
 
+```{r summarytable}
 ## after trying with the late param in model 2 i got the same error
 #summary(Model)
 
@@ -277,10 +307,10 @@ summary2.table <- tbl_regression(Model2, exponentiate = TRUE) #do not use, need 
 
 summary3.table <- tbl_regression(Model3, exponentiate = TRUE)
 
-
+summary4.table <- tbl_regression(Model4, exponentiate = TRUE)
 #PROBS
-
-
+```
+```{r model3}
 ## TEST PROBS **MODEL 3 --- 50% THRESH**
 
 testProbs3 <- data.frame(Outcome = as.factor(dataTest$y_numeric),
@@ -306,6 +336,23 @@ testProbs3 <-
 
 
 ```
+```{r distribution}
+testProbs4 <- data.frame(Outcome = as.factor(dataTest$y_numeric),
+                         Probs = predict(Model4, dataTest, type="response"))
 
+testProbs4 <- 
+  testProbs4 %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs4$Probs > 0.50 , 1, 0))) 
+
+ggplot(testProbs4, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Fourth Model: Distribution of Predicted Probabilities by Observed Outcome",
+       caption= "Fig.6") +
+  theme(strip.text.x = element_text(size = 18, color = ""),
+        legend.position = "none")
+```
 ```{r validation}
 ```
