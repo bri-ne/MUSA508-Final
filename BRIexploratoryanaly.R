@@ -9,12 +9,30 @@ library(cowplot) #for plotgrid
 library(fastDummies)
 library(spdep)
 library(caret)
+library(mapview)
 
 options(scipen=999)
 options(tigris_class = "sf")
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+# is it late over 2 mins y/n 
+
+# model put ins
+#   time of day (at least two hours out)
+#   line
+#   station pickup 
+# model outputs 
+#   is the train going to be late over 2 mins. at pickup station
+
+
+# lines we'll be working with 
+#
+
+
+# Graphics - deliverables 
+#   
 
 ## Census stuff that i have not incorporated ----
 # ACS VARS
@@ -151,7 +169,7 @@ data <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/da
 data["delay_minutes"][is.na(data["delay_minutes"])] <- 0 # <------ make NAs in delay_minutes 0
 data["stop_sequence"][is.na(data["stop_sequence"])] <- 0 # <------ make NAs in delay_minutes 0
 
-GroupedLine<- data%>%dplyr::group_by(line)%>%summarise(LineAvgDelay = mean(delay_minutes), 
+GroupedLine<- njtransitdf%>%dplyr::group_by(line)%>%summarise(LineAvgDelay = mean(delay_minutes), 
                                                        MedianStopSeq = median(stop_sequence),
                                                        MaxStopSeq = max(stop_sequence))
   
@@ -215,7 +233,7 @@ reg.train <- lm( ~ ., data = boulder.training %>%
                   ))
 
 
-bould_train_cols <- data.frame(colnames(boulder.training)) 
+cols <- data.frame(colnames(stoplocations)) 
 
 
 ## Predict 
@@ -237,3 +255,31 @@ boulder.test <-
 mean(boulder.test$SalePrice.AbsError, na.rm = T) # 139587.7 
 
 mean(boulder.test$SalePrice.APE, na.rm = T) #0.1719868
+
+
+## SANDBOX ~~ free for all do not use ----
+
+
+devtools::install_github("dkahle/ggmap")
+install.packages('maps')
+install.packages("mapview")
+library(mapview)
+mapview(basemaps = "CartoDB.Positron", stoplocations)
+location <- "New Jersey"
+location<- geocode(location)
+
+mymap <- get_stamenmap()
+
+stoplocations4326 <- stoplocations%>%st_transform(crs=4326)
+ggmap(mymap)+
+geom_point(aes(x = LONGITUDE, y = LATITUDE), data = stoplocations4326,  
+           alpha = .5, color="darkred", size = 3)
+
+
+
+ggplot()
+
+
+
+nrow(study.panel)+nrow(train.template)  
+nrow(train.panel) 
