@@ -67,7 +67,6 @@ library(gridExtra)
 library(knitr)
 library(kableExtra)
 library(caret)
-
 library(knitr) 
 library(pscl)
 library(plotROC)
@@ -227,11 +226,30 @@ OBJECTIVE: Create regression that will predict \# of minutes late a train line w
 train.weather.panel %>%
   group_by(y_numeric) %>% 
   summarize(Percipitation = mean(lag4Hourswind)) %>%
-    ggplot(aes(y_numeric, Percipitation)) + geom_bar(stat = "identity") +
+    ggplot(aes(y_numeric, Percipitation)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
       labs(title="Does lateness vary with temperature two hours ahead?",
            x="y_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
       plotTheme() 
 ```
+```{r line}
+train.weather.panel %>%
+  group_by(line) %>% 
+  summarize(lateness = mean(late)) %>%
+    ggplot(aes(line, lateness)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
+      labs(title="Does lateness vary depending on the line?",
+           x="Line", y="Mean Seconds Late", color = "#0C0E1D") +
+      plotTheme() 
+```
+```{r explorelag}
+train.weather.panel %>%
+  group_by(day) %>% 
+  summarize(lateness = mean(late)) %>%
+    ggplot(aes(day, lateness)) + geom_bar(stat = "identity", color = "#a81010", fill= "#a81010") +
+      labs(title="Does lateness vary with the day of the week?",
+           x="day of the week", y="Mean seconds late") +
+      plotTheme() 
+```
+
 
 ```{r features}
 #Build features
