@@ -33,13 +33,13 @@ output: html_document
 
 ## Codewise to do, next steps: 
 
--   choose two lines
+-   ~~choose two lines~~
 
 -   merge the weather
 
     -   use this as a numeric variable at first
 
--   merge stop location
+-   ~~merge stop location~~
 
     -   each stop as cat variable
 
@@ -66,6 +66,13 @@ library(riem)
 library(gridExtra)
 library(knitr)
 library(kableExtra)
+library(caret)
+
+library(knitr) 
+library(pscl)
+library(plotROC)
+library(gtsummary) #for table cause broom always f's everything up
+
 
 options(tigris_class = "sf")
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
@@ -103,7 +110,7 @@ njtransitdf <- njtransitdf %>%
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
 stoplocations <- stoplocations %>%
-  st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+  st_as_sf(coords = c("ï..X", "Y"), crs =3424, agr = "constant") 
 ```
 
 ```{r template}
@@ -111,7 +118,7 @@ stoplocations <- stoplocations %>%
 ## Filters down to Week 1- 10
 ## Train on 8 test on 2 weeks 
 train.template <- 
-  filter(njtransitdf, week %in% c(1: 10))#could filter here for lines
+  filter(njtransitdf, week %in% c(1: 10))%>%filter(line == "Bergen Co. Line " | line == "Gladstone Branch")
 
 length(unique(train.template$intervalhour)) * length(unique(train.template$line)) * length(unique(train.template$from))
 ```
@@ -121,8 +128,8 @@ length(unique(train.template$intervalhour)) * length(unique(train.template$line)
 ## 
 study.panel <- 
   expand.grid(intervalhour = unique(train.template$intervalhour), 
-              from = unique(train.template$from))#,
-              #line= unique(train.template$line))
+              from = unique(train.template$from),
+              line= unique(train.template$line))
               
 nrow(study.panel)    
 
@@ -131,17 +138,19 @@ nrow(study.panel)
 ```{r trainpanel}
 train.panel <- 
   train.template %>%
-    right_join(study.panel) %>% 
-      group_by(intervalhour, from)%>%
-#, line) add to the train.panel once add lines to study.panel
-  
-  # ^^ replace NA with zero 
+    right_join(study.panel, on=intervalhour) %>% 
+      group_by(intervalhour, from, line)
 
-      summarize(late = mean(delay_dt, na.rm=T)) %>%
+### Breaking this up to curb unecessary processing on a bunch of NAS
+
+train.panel <- train.panel%>%drop_na()
+
+train.panel <- train.panel%>%summarize(late = mean(delay_dt, na.rm=T)) %>%
   mutate(day= wday(intervalhour),
         late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
 
 #leave this for potential use as a cat. 
+
 
 ```
 
@@ -154,10 +163,10 @@ weather.Panel <-
   weather.Data %>%
     mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
     replace(is.na(.), 0) %>%
-    mutate(interval60 = ymd_h(substr(valid, 1, 13))) %>%
-    mutate(week = week(interval60),
-           dotw = wday(interval60, label=TRUE)) %>%
-    group_by(interval60) %>%
+    mutate(intervalhour = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(week = week(intervalhour),
+           dotw = wday(intervalhour, label=TRUE)) %>%
+    group_by(intervalhour) %>%
     summarize(Temperature = max(tmpf),
               Percipitation = sum(p01i),
               Wind_Speed = max(sknt)) %>%
@@ -181,35 +190,70 @@ train.panel <-
            lag1day = dplyr::lag(late,24)) %>% 
    ungroup()
 
+
+
+### Making all new NAs ZERO ~~~~
+
+train.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")][is.na(train.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")])] <- 0 
+
 ```
 
 ```{r joineddf}
-train.weather.panel <- merge(x= train.panel, y= weather.Data, by.x= 'intervalhour', by.y= 'interval60', all.x= T)
+train.weather.panel <- merge(x= train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
 
-## get it merge, got set up how it's set up in the book, it should work but investigate
+
 ```
 
 OBJECTIVE: Create regression that will predict \# of minutes late a train line will be with information available 2 hours ahead of time ------ MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
 
 ```{r explore}
-Do exploratory analysis to understand which variables will be useful features
-inculde some number of these in our presentation and write up 
+#Do exploratory analysis to understand which variables will be useful features
+#inculde some number of these in our presentation and write up 
 ```
 
 ```{r features}
-Build features
-Parameterizing lines: i.e. what line is it on 
-Spatial fixed effect, characteristics of stations or so heavily co-linear
-How central something is 
-Particular lines have their own issues 
-Use case: how do you set up your model—a particular train, a particular time, particular place 
-Level of specificity the use case demands 
-Scheduled arrival time is a line → 
+#Build features
+#Parameterizing lines: i.e. what line is it on 
+#Spatial fixed effect, characteristics of stations or so heavily co-linear
+#How central something is 
+#Particular lines have their own issues 
+#Use case: how do you set up your model—a particular train, a particular time, particular place 
+#Level of specificity the use case demands 
+#Scheduled arrival time is a line → 
 
 ```
 
 ```{r model}
-Split data: train on 2 months, test on 2 weeks
+#first making a y-numeric for 1 late over 2 mins, and 0 for not late over 2mins
+
+train.weather.panel<- train.weather.panel%>%mutate(y_numeric = ifelse(late < minutes(2), 0, 1))
+
+
+#Split data: train on 2 months, test on 2 weeks
+
+## Partition
+set.seed(2121)
+trainIndex <- createDataPartition(train.weather.panel$y_numeric, p = .65,
+                                  list = FALSE,
+                                  times = 1)
+dataTrain <- train.weather.panel[ trainIndex,]
+dataTest  <- train.weather.panel[-trainIndex,]
+
+## First REG
+
+Model1 <- glm(y_numeric ~ .,
+                        data=dataTrain,     #### Just getting rid of index
+                        family="binomial" (link="logit"))
+
+#summary(Model)
+
+summary1.table <- tbl_regression(Model1, exponentiate = TRUE)
+
+
+
+
+
+
 Process modeling 
 ```
 
