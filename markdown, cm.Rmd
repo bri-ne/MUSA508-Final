@@ -110,8 +110,9 @@ njtransitdf <- njtransitdf %>%
 ```{r stations}
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
-stoplocations <- stoplocations %>%
-  st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+
+#stoplocations <- stoplocations %>%st_as_sf(coords = c("ï..X", "Y"), crs =3424, agr = "constant") 
 ```
 
 ```{r template}
@@ -231,6 +232,10 @@ train.weather.panel %>%
            x="y_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
       plotTheme() 
 ```
+
+
+
+
 ```{r line}
 train.weather.panel %>%
   group_by(line) %>% 
@@ -240,6 +245,8 @@ train.weather.panel %>%
            x="Line", y="Mean Seconds Late", color = "#0C0E1D") +
       plotTheme() 
 ```
+
+
 ```{r explorelag}
 train.weather.panel %>%
   group_by(day) %>% 
@@ -301,7 +308,7 @@ Model3<- glm(y_numeric ~ .,
                           dplyr::select(y_numeric,
                                         from, 
                                         intervalhour,
-                                        lagHour, lag2Hours, lag3Hours), #### SOME VARS NEED INTERVAL HOUR THOugh
+                                        lagHour, lag2Hours, lag3Hours), 
                         family="binomial" (link="logit"))
 
 
@@ -311,7 +318,7 @@ Model4<- glm(y_numeric ~ .,
                                         from, 
                                         intervalhour,
                                         lag1day, lag2Hours, lag3Hours,
-                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line), #### SOME VARS NEED INTERVAL HOUR THOugh
+                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line), 
                         family="binomial" (link="logit"))
 ```
 
@@ -328,6 +335,8 @@ summary3.table <- tbl_regression(Model3, exponentiate = TRUE)
 summary4.table <- tbl_regression(Model4, exponentiate = TRUE)
 #PROBS
 ```
+
+
 ```{r model3}
 ## TEST PROBS **MODEL 3 --- 50% THRESH**
 
