@@ -318,3 +318,35 @@ nrow(train.panel)
 
 mapview(basemaps = "CartoDB.Positron", bergGEOM)
 mapview(basemaps = "CartoDB.Positron", gladGEOM)
+
+
+
+#  DO NOT NEED Tibble, but keeping just in case 
+
+No weather yet.
+
+## Making First Tibble
+-   Just doing this for one train first?
+  -   get only regression variables
+-   divide train and test 
+-   make tibble
+-   run regression
+
+
+
+#### Making it a tibble -----
+gladTibble <- nest(as.tibble(gladModel), cols= -train_id)
+
+gladTrainTibble <- nest(as.tibble(gladTrain), cols= -train_id)
+gladTestTibble <- nest(as.tibble(gladTest), cols= -train_id)
+unnest(gladTrainTibble)
+
+
+#### and then adding the lag ----
+unnest(unnest(gladTibble))
+
+gladTibble <- gladTibble%>%
+  mutate(onestop_lag = map(.x=gladTibble, .f = dplyr::lag(late, 1)))
+#,
+twostop_lag = map(.x = data, fit = reg2, .f = model_pred),
+threestop_lag = map(.x = data, fit = reg3, .f = model_pred))
