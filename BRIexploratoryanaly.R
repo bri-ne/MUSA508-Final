@@ -283,3 +283,7 @@ ggplot()
 
 nrow(study.panel)+nrow(train.template)  
 nrow(train.panel) 
+
+
+mapview(basemaps = "CartoDB.Positron", bergGEOM)
+mapview(basemaps = "CartoDB.Positron", gladGEOM)

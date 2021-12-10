@@ -73,13 +73,86 @@ library(plotROC)
 library(gtsummary) #for table cause broom always f's everything up
 
 
+## FOR MAPS ~~
+library(RColorBrewer)
+library(ggmap)  
+library(maps)
+library(mapdata)
+
+
 options(tigris_class = "sf")
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
 
-palette4 <- c("#260a03", "#f8cd12", "#a81010", "#f2fdff", "#93afdc", "#0c0e1d")
-palette3 <- c("#0C0E1D", "#7396D3", "#260A03")
+palette6 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette5 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette4 <- c("#a81010", "#f8cd12", "#93afdc", "#0c0e1d" )
+
+palette3 <- c("#a81010", "#f8cd12", "#93afdc")
+
 palette2 <- c("#260a03", "#a81010")
+
+plotTheme2 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background =element_blank(), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "#93afdc", fill=NA, size=4),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#f2fdff", color = "#f2fdff"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#0c0e1d")
+  )
+}
+
+
+plotTheme3 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background=element_rect(fill = "#93afdc", color = "#f2fdff"), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border =element_blank(),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#f2fdff", color = "#f2fdff"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#f2fdff")
+  )
+}
+
+
+
 
 ```
 
@@ -123,7 +196,234 @@ train.template <-
   filter(njtransitdf, week %in% c(1: 10))%>%filter(line == "Bergen Co. Line " | line == "Gladstone Branch")
 
 length(unique(train.template$intervalhour)) * length(unique(train.template$line)) * length(unique(train.template$from))
+
+#### TRYING TO GET A FEAT WHERE IF PREV STOP WAS LATE, NEXT STOP WILL BE LATE
+
+## JUST BERGEN, *Not Grouped By Anything* 
+
+berg <- train.template%>%filter(line == "Bergen Co. Line ")
+
+  # grouping by all the things we want to investigate later, so we don't lose detail: 
+bergInterval <- berg%>%group_by(stop_sequence, from, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>% 
+                                                                                mutate(lagHour = dplyr::lag(late,1),
+                                                                                         lag2Hours = dplyr::lag(late,2),
+                                                                                         lag3Hours = dplyr::lag(late,3),
+                                                                                         lag4Hours = dplyr::lag(late,4),
+                                                                                         lag12Hours = dplyr::lag(late,12),
+                                                                                         lag1day = dplyr::lag(late,24)) ## This is a Study Panel               
+
+## JUST GLADSTONE, *Not Grouped By Anything* 
+
+glad <- train.template%>%filter(line == "Gladstone Branch")
+
+  # grouping by all the things we want to investigate later, so we don't lose detail: 
+gladInterval <- glad%>%group_by(stop_sequence, from, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>%
+                                                                                mutate(lagHour = dplyr::lag(late,1),
+                                                                                         lag2Hours = dplyr::lag(late,2),
+                                                                                         lag3Hours = dplyr::lag(late,3),
+                                                                                         lag4Hours = dplyr::lag(late,4),
+                                                                                         lag12Hours = dplyr::lag(late,12),
+                                                                                         lag1day = dplyr::lag(late,24)) ## This is a Study Panel
+
+
+
+
+
+
+
+
 ```
+
+```{r mappinglatestops}
+
+### THIS can be moved to a more appropriate spot later, but for now: 
+
+  ## First, merge with stop data:
+  
+gladstops <- unique(gladInterval$from)
+length(gladstops)
+station_id <- unique(stoplocations$STATION_ID)
+
+  ### Getting the names the same 
+      
+      ## GLAD ~~~~
+
+gladInterval$from<-replace(gladInterval$from, gladInterval$from == "Hoboken", "Hoboken Terminal")
+gladInterval$from<-replace(gladInterval$from, gladInterval$from == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+
+gladID <- stoplocations%>%
+  filter(STATION_ID %in% gladstops)
+
+
+gladGEOM <- gladInterval%>%merge(gladID, by.x ="from", by.y="STATION_ID") 
+
+      ## BERG ~~~~
+
+bergstops <- unique(bergInterval$from)
+
+length(bergstops)
+
+bergID <- stoplocations%>%
+  filter(STATION_ID %in% bergstops)
+
+length(bergID)
+stoplocations <- stoplocations%>%mutate(STATION_ID = ifelse(COUNTY == "Orange, NY" & STATION_ID == "Middletown", "Middletown NY", STATION_ID))
+
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Broadway Fair Lawn", "Broadway")
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Hoboken", "Hoboken Terminal")
+
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Radburn Fair Lawn", "Radburn")
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Ramsey Main St", "Ramsey")
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Ramsey Route 17", "Rte 17 Ramsey")
+bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
+
+
+
+
+bergGEOM <- bergInterval%>%merge(bergID, by.x ="from", by.y="STATION_ID")
+bergGEOM <-bergGEOM%>%st_as_sf( crs =3424, agr = "constant")
+gladGEOM <-gladGEOM%>%st_as_sf( crs =3424, agr = "constant")
+ggplot()+
+  geom_sf(data=bergGEOM, aes(color = late))
+
+
+
+
+bergGEOM <- bergGEOM%>%mutate(lateM = late/60,
+                              hour= hour(intervalhour),
+                              daynumeric= wday(intervalhour),
+                              week = week(intervalhour),
+                              weekday = weekdays(intervalhour),
+            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
+
+test<-bergGEOM%>%dplyr::filter(hour == 13 & week ==2)
+
+
+
+### MAPS 
+
+njGEO <- st_read("https://data.ci.newark.nj.us/dataset/db87f66a-6d79-4933-9011-f392fdce7eb8/resource/95db8cad-3a8c-41a4-b8b1-4991990f07f3/download/njcountypolygonv2.geojson")
+njGEO<-njGEO%>%st_transform(crs =3424)
+
+install.packages("basemaps")
+library(basemaps)
+
+basemap_ggplot(bergGEOM, map_service = "osm_stamen", map_type = "toner")
+
+bergMAP2<- ggplot()+
+  geom_sf(data=njGEO, fill="black")+
+geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
+          shape=21, color= 'grey10', alpha = 0.6,
+          aes(size = late, fill=late))+
+  #scale_size_manual(name = "Lateness",
+                    #labels = bergGEOM, "late")+
+  scale_fill_gradient( low = "#260a03",
+                          high = "#a81010",
+                          space = "Lab",
+                          na.value = "grey50",
+                          #guide = "colourbar",
+                          aesthetics = "colour",
+                          guide="none")+
+
+  labs(title = "Mean Lateness By Stop", 
+       #subtitle = "By Tract, Boston 2013-2018",
+       caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
+    ))+
+  facet_wrap(~ weekday)
+
+"#260a03", "#a81010"
+
+
+
+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "BuPu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )
+
+
+
+
+bergMAP<- ggplot()+
+  geom_sf(data=njGEO, fill="grey80")+
+geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
+          shape=21, color= 'grey10', alpha = 0.6,
+          aes(size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(bergGEOM, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "BuPu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Minutes Late By Stop 9:00 AM Hour ET", 
+       #subtitle = "By Tract, Boston 2013-2018",
+       caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
+    ))+
+      facet_wrap(~ weekday)#+mapTheme()
+
+
+
+bergMAP3<- ggplot()+
+geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
+          shape=21, color= 'grey10', alpha = 0.6,
+          aes(size = q5(late),
+              fill= q5(late)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(bergGEOM, "late"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "BuPu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Mean Lateness By Stop", 
+       #subtitle = "By Tract, Boston 2013-2018",
+       caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
+    ))+
+      facet_wrap(~ weekday)+mapTheme()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
 
 ```{r studypanel}
 
@@ -131,27 +431,47 @@ length(unique(train.template$intervalhour)) * length(unique(train.template$line)
 study.panel <- 
   expand.grid(intervalhour = unique(train.template$intervalhour), 
               from = unique(train.template$from),
-              line= unique(train.template$line))
-              
-nrow(study.panel)    
+              stopseq=unique(train.template$stop_sequence))
+              #line= unique(train.template$line))
+
+## NEW Study Panel: Adding column for line and Rbind this mfs 
+
+NEWstudypanel<- rbind((gladInterval%>%mutate(line="Gladstone Branch")), (bergInterval%>%mutate(line="Bergen Co. Line")))
 
 ```
 
 ```{r trainpanel}
+
+
 train.panel <- 
   train.template %>%
     right_join(study.panel, on=intervalhour) %>% 
       group_by(intervalhour, from, line)
+
+
 
 ### Breaking this up to curb unecessary processing on a bunch of NAS
 
 train.panel <- train.panel%>%drop_na()
 
 train.panel <- train.panel%>%summarize(late = mean(delay_dt, na.rm=T)) %>%
-  mutate(day= wday(intervalhour),
+  mutate(daynumeric= wday(intervalhour),
         late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
 
 #leave this for potential use as a cat. 
+
+
+## NEW Train Panel
+
+### Making all new NAs ZERO ~~~~
+NEWstudypanel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")][is.na(NEWstudypanel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day")])] <- 0 
+
+
+
+NEWtrainpanel <- NEWstudypanel%>%mutate(daynumeric= wday(intervalhour),
+                                        week = week(intervalhour),
+                                        weekday = weekdays(intervalhour),
+                                        late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")),)
 
 
 ```
@@ -206,7 +526,8 @@ train.weather.panel <-
            lag12Hourswind = dplyr::lag(Wind_Speed,12),
            lag1daywind = dplyr::lag(Wind_Speed,24),
            
-           week = week(intervalhour)) %>% 
+           week = week(intervalhour),
+           weekday = weekdays(intervalhour)) %>% 
    ungroup()
 
 
@@ -215,46 +536,94 @@ train.weather.panel <-
 
 train.weather.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag2Hoursrain", "lag3Hoursrain", "lag4Hoursrain", "lag12Hoursrain", "lag1dayrain", "lag2Hourstemp", "lag3Hourstemp", "lag4Hourstemp", "lag12Hourstemp", "lag1daytemp", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind")][is.na(train.weather.panel[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag2Hoursrain", "lag3Hoursrain", "lag4Hoursrain", "lag12Hoursrain", "lag1dayrain", "lag2Hourstemp", "lag3Hourstemp", "lag4Hourstemp", "lag12Hourstemp", "lag1daytemp", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind")])] <- 0 
 
+
+
+### NEW Train Weather Panel
+
+NEW.tw.panel <- merge(x= NEWtrainpanel, y= weather.Panel, by= 'intervalhour', all.x= T)
+
+
+
+
 ```
 
 ```{r joineddf}
-train.weather.panel<- train.weather.panel%>%mutate(y_numeric = ifelse(late < minutes(2), 0, 1))
+
+### Adding our Y variable
+train.weather.panel<- train.weather.panel%>%mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
+                                                   y2 = ifelse(late < minutes(2), "no", "yes"),
+                                                   y5_numeric = ifelse(late < minutes(5), 0, 1),
+                                                   y5 = ifelse(late < minutes(5), "no", "yes"),)
 ```
 
 OBJECTIVE: Create regression that will predict \# of minutes late a train line will be with information available 2 hours ahead of time ------ MOREOVER: creating a function that takes imputs (that would be asked for from the app, and spits out a prediction)
 
-```{r explorelag}
-train.weather.panel %>%
-  group_by(y_numeric) %>% 
+```{r explorelag, fig.width=12, fig.height=5}
+
+library(cowplot)
+two <- train.weather.panel %>%
+  group_by(y2_numeric) %>% 
   summarize(Percipitation = mean(lag4Hourswind)) %>%
-    ggplot(aes(y_numeric, Percipitation)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
+    ggplot(aes(y2_numeric, Percipitation)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
       labs(title="Does lateness vary with temperature two hours ahead?",
-           x="y_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
+           x="y2_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
       plotTheme() 
+
+
+five <- train.weather.panel %>%
+  group_by(y5_numeric) %>% 
+  summarize(Percipitation = mean(lag4Hourswind)) %>%
+    ggplot(aes(y5_numeric, Percipitation)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
+      labs(title="Does lateness vary with temperature two hours ahead?",
+           x="y5_numeric", y="Mean Temp 2 Hours Before Scheduled Departure") +
+      plotTheme() 
+
+plot_grid(two, five)
+
+
 ```
 
 
 
 
-```{r line}
+```{r bar}
 train.weather.panel %>%
   group_by(line) %>% 
   summarize(lateness = mean(late)) %>%
     ggplot(aes(line, lateness)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
-      labs(title="Does lateness vary depending on the line?",
+      labs(title="Does Lateness Vary Depending on the Line?",
            x="Line", y="Mean Seconds Late", color = "#0C0E1D") +
-      plotTheme() 
+      plotTheme2() 
+```
+
+```{r line, fig.width=10, fig.height=12} 
+
+
+ #f2fdff
+origin <- train.weather.panel %>%
+  group_by(from) %>% 
+  summarize(lateness = mean(late)) %>% mutate(from = fct_reorder(from, lateness)) %>%
+    ggplot(aes(lateness, from)) + geom_bar(stat = "identity",  color = NA, fill= "#0c0e1d") +
+      labs(title="Does Lateness Vary by Stop Origin",
+           x="Mean seconds late", y="Origin Stop") +
+  scale_y_discrete(expand = expansion(mult = c(.02, .02)))+
+  scale_x_continuous(expand = expansion(mult = c(0, 0.02)))+
+     plotTheme2()
 ```
 
 
+
+
+
+
 ```{r explorelag}
-train.weather.panel %>%
-  group_by(day) %>% 
+train.weather.panel %>%mutate(weekday = fct_reorder(weekday, day))%>%
+  group_by(weekday) %>% 
   summarize(lateness = mean(late)) %>%
-    ggplot(aes(day, lateness)) + geom_bar(stat = "identity", color = "#a81010", fill= "#a81010") +
-      labs(title="Does lateness vary with the day of the week?",
+    ggplot(aes(weekday, lateness)) + geom_bar(stat = "identity", color = "#0c0e1d", fill= "#0c0e1d") + 
+      labs(title="Does Lateness Vary With the Day of the Week?",
            x="day of the week", y="Mean seconds late") +
-      plotTheme() 
+      plotTheme2() 
 ```
 
 
@@ -267,6 +636,8 @@ train.weather.panel %>%
 #Use case: how do you set up your model—a particular train, a particular time, particular place 
 #Level of specificity the use case demands 
 #Scheduled arrival time is a line → 
+
+
 
 ```
 
@@ -312,9 +683,18 @@ Model3<- glm(y_numeric ~ .,
                         family="binomial" (link="logit"))
 
 
-Model4<- glm(y_numeric ~ .,
+Model4<- glm(y2_numeric ~ .,
                         data=dataTrain %>% 
-                          dplyr::select(y_numeric,
+                          dplyr::select(y2_numeric,
+                                        from, 
+                                        intervalhour,
+                                        lag1day, lag2Hours, lag3Hours,
+                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line), 
+                        family="binomial" (link="logit"))
+
+Model5<- glm(y5_numeric ~ .,
+                        data=dataTrain %>% 
+                          dplyr::select(y5_numeric,
                                         from, 
                                         intervalhour,
                                         lag1day, lag2Hours, lag3Hours,
@@ -333,11 +713,12 @@ summary2.table <- tbl_regression(Model2, exponentiate = TRUE) #do not use, need 
 summary3.table <- tbl_regression(Model3, exponentiate = TRUE)
 
 summary4.table <- tbl_regression(Model4, exponentiate = TRUE)
+summary5.table <- tbl_regression(Model5, exponentiate = TRUE)
 #PROBS
 ```
 
 
-```{r model3}
+```{r Testprobs}
 ## TEST PROBS **MODEL 3 --- 50% THRESH**
 
 testProbs3 <- data.frame(Outcome = as.factor(dataTest$y_numeric),
@@ -347,11 +728,34 @@ testProbs3 <-
   testProbs3 %>%
   mutate(predOutcome  = as.factor(ifelse(testProbs3$Probs > 0.50 , 1, 0)))
 
+## 4
 
+testProbs4 <- data.frame(Outcome = as.factor(dataTest$y2_numeric),
+                         Probs = predict(Model4, dataTest, type="response"))
+
+testProbs4 <- 
+  testProbs4 %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs4$Probs > 0.50 , 1, 0)))
+
+## 5 
+testProbs5 <- data.frame(Outcome = as.factor(dataTest$y5_numeric),
+                         Probs = predict(Model5, dataTest, type="response"))
+
+testProbs5 <- 
+  testProbs5 %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs5$Probs > 0.50 , 1, 0)))
+
+
+
+```
+
+
+
+```{r distribution}
 
 ## TEST PROBS PLOT **MODEL 3 --- 50% THRESH**
 
- ggplot(testProbs3, aes(x = Probs, fill = as.factor(Outcome))) + 
+ three<- ggplot(testProbs3, aes(x = Probs, fill = as.factor(Outcome))) + 
   geom_density() +
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
@@ -362,24 +766,138 @@ testProbs3 <-
         legend.position = "none")
 
 
-```
-```{r distribution}
-testProbs4 <- data.frame(Outcome = as.factor(dataTest$y_numeric),
-                         Probs = predict(Model4, dataTest, type="response"))
+## TEST PROBS PLOT **MODEL 4 --- 50% THRESH**
 
-testProbs4 <- 
-  testProbs4 %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs4$Probs > 0.50 , 1, 0))) 
-
-ggplot(testProbs4, aes(x = Probs, fill = as.factor(Outcome))) + 
+ four<- ggplot(testProbs4, aes(x = Probs, fill = as.factor(Outcome))) + 
   geom_density() +
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
   labs(x = "Late Over 2 Mins", y = "Density of probabilities",
        title = "Fourth Model: Distribution of Predicted Probabilities by Observed Outcome",
        caption= "Fig.6") +
-  theme(strip.text.x = element_text(size = 18, color = ""),
+  theme(strip.text.x = element_text(size = 18),
         legend.position = "none")
+ 
+ 
+## TEST PROBS PLOT **MODEL 5 --- 50% THRESH**
+
+ five <- ggplot(testProbs5, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 5 Mins", y = "Density of probabilities",
+       title = "Five Model: Distribution of Predicted Probabilities by Observed Outcome",
+       caption= "Fig.6") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")
+ 
+ 
+ plot_grid(three, four, five, ncol = 1, nrow=3)
 ```
+
+
 ```{r validation}
+
+
+## Cross Validation 
+
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+#### Model 3 ----
+
+
+  #define the variables we want
+Model3.vars <- colnames(train.weather.panel%>%dplyr::select(
+                                        from, 
+                                        intervalhour,
+                                        lagHour, lag2Hours, lag3Hours))
+
+
+cvFit3 <- caret::train(y2 ~ .,
+                       data=train.weather.panel %>%dplyr::select(all_of(Model3.vars), y2), 
+                       method="glm", family="binomial",
+                       metric="ROC", trControl = ctrl)
+
+cvFit3.plot<- dplyr::select(cvFit3$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit3$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#FFB000") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#648FFF", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="MODEL 3 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= "Fig.10") +
+  plotTheme2()
+
+
+
+#### Model 4 ----
+
+
+  #define the variables we want
+Model4.vars <- colnames(dataTest%>%dplyr::select(
+                                        from, 
+                                        intervalhour,
+                                        lag1day, lag2Hours, lag3Hours,
+                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line))
+
+
+cvFit4 <- caret::train(y2 ~ .,
+                       data=dataTrain %>%dplyr::select(all_of(Model4.vars), y2), 
+                       method="glm", family="binomial",
+                       metric="ROC", trControl = ctrl)
+
+
+cvFit4.plot <-dplyr::select(cvFit4$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit4$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#FFB000") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#648FFF", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="MODEL 4 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= "Fig.10") +
+  plotTheme2()
+
+
+
+#### Model 5 ----
+
+
+  #define the variables we want
+Model5.vars <- colnames(train.weather.panel%>%dplyr::select(
+                                        from, 
+                                        intervalhour,
+                                        lag1day, lag2Hours, lag3Hours,
+                                        lag12Hoursrain, lag12Hourswind, lag12Hourstemp,lag2Hoursrain, lag2Hourswind, lag2Hourstemp, line))
+
+
+cvFit5 <- caret::train(y5 ~ .,
+                       data=train.weather.panel %>%dplyr::select(all_of(Model5.vars), y5), 
+                       method="glm", family="binomial",
+                       metric="ROC", trControl = ctrl)
+
+cvFit5.plot<- dplyr::select(cvFit5$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit5$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#FFB000") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#648FFF", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="MODEL 5 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= "Fig.10") +
+  plotTheme2()
+
+
+plot_grid(cvFit3.plot, cvFit4.plot, cvFit5.plot, nrow=3)
+
+
+
+
 ```
