@@ -71,7 +71,7 @@ library(knitr)
 library(pscl)
 library(plotROC)
 library(gtsummary) #for table cause broom always f's everything up
-
+library(pROC)
 
 ## FOR MAPS ~~
 library(RColorBrewer)
@@ -110,7 +110,7 @@ plotTheme2 <-function(base_size = 12, title_size = 18) {
     panel.grid.minor = element_blank(),
     panel.border = element_rect(colour = "#93afdc", fill=NA, size=4),
     #panel.spacing = unit(c(2,2,2,2), "cm"),
-    strip.background = element_rect(fill = "#f2fdff", color = "#f2fdff"),
+    strip.background = element_rect(fill = NA, color = "#f2fdff"),
     strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
     axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
     axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
@@ -204,32 +204,51 @@ length(unique(train.template$intervalhour)) * length(unique(train.template$line)
 berg <- train.template%>%filter(line == "Bergen Co. Line ")
 
   # grouping by all the things we want to investigate later, so we don't lose detail: 
-bergInterval <- berg%>%group_by(stop_sequence, from, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>% 
+bergInterval <- berg%>%group_by(stop_sequence, from, to, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>% 
                                                                                 mutate(lagHour = dplyr::lag(late,1),
                                                                                          lag2Hours = dplyr::lag(late,2),
                                                                                          lag3Hours = dplyr::lag(late,3),
                                                                                          lag4Hours = dplyr::lag(late,4),
                                                                                          lag12Hours = dplyr::lag(late,12),
-                                                                                         lag1day = dplyr::lag(late,24)) ## This is a Study Panel               
+                                                                                         lag1day = dplyr::lag(late,24),
+                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel               
 
 ## JUST GLADSTONE, *Not Grouped By Anything* 
 
 glad <- train.template%>%filter(line == "Gladstone Branch")
 
   # grouping by all the things we want to investigate later, so we don't lose detail: 
-gladInterval <- glad%>%group_by(stop_sequence, from, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>%
+gladInterval <- glad%>%group_by(stop_sequence, from, to, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>%
                                                                                 mutate(lagHour = dplyr::lag(late,1),
                                                                                          lag2Hours = dplyr::lag(late,2),
                                                                                          lag3Hours = dplyr::lag(late,3),
                                                                                          lag4Hours = dplyr::lag(late,4),
                                                                                          lag12Hours = dplyr::lag(late,12),
-                                                                                         lag1day = dplyr::lag(late,24)) ## This is a Study Panel
+                                                                                         lag1day = dplyr::lag(late,24),
+                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel
 
 
 
+gladInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")][is.na(gladInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")])] <- 0 
+
+
+bergInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")][is.na(bergInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")])] <- 0 
 
 
 
+gladInterval <- gladInterval%>%mutate(lateM = late/60,
+                              hour= hour(intervalhour),
+                              daynumeric= wday(intervalhour),
+                              week = week(intervalhour),
+                              weekday = weekdays(intervalhour),
+            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
+
+bergInterval <- bergInterval%>%mutate(lateM = late/60,
+                              hour= hour(intervalhour),
+                              daynumeric= wday(intervalhour),
+                              week = week(intervalhour),
+                              weekday = weekdays(intervalhour),
+            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
 
 
 ```
@@ -249,7 +268,11 @@ station_id <- unique(stoplocations$STATION_ID)
       ## GLAD ~~~~
 
 gladInterval$from<-replace(gladInterval$from, gladInterval$from == "Hoboken", "Hoboken Terminal")
+gladInterval$to<-replace(gladInterval$to, gladInterval$to == "Hoboken", "Hoboken Terminal")
+
 gladInterval$from<-replace(gladInterval$from, gladInterval$from == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+gladInterval$to<-replace(gladInterval$to, gladInterval$to == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+
 
 gladID <- stoplocations%>%
   filter(STATION_ID %in% gladstops)
@@ -263,6 +286,7 @@ bergstops <- unique(bergInterval$from)
 
 length(bergstops)
 
+
 bergID <- stoplocations%>%
   filter(STATION_ID %in% bergstops)
 
@@ -272,86 +296,99 @@ stoplocations <- stoplocations%>%mutate(STATION_ID = ifelse(COUNTY == "Orange, N
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Broadway Fair Lawn", "Broadway")
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Hoboken", "Hoboken Terminal")
-
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Radburn Fair Lawn", "Radburn")
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Ramsey Main St", "Ramsey")
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Ramsey Route 17", "Rte 17 Ramsey")
 bergInterval$from<-replace(bergInterval$from, bergInterval$from == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
 
 
-
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Broadway Fair Lawn", "Broadway")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Hoboken", "Hoboken Terminal")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Radburn Fair Lawn", "Radburn")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Ramsey Main St", "Ramsey")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Ramsey Route 17", "Rte 17 Ramsey")
+bergInterval$to<-replace(bergInterval$to, bergInterval$to == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
 
 bergGEOM <- bergInterval%>%merge(bergID, by.x ="from", by.y="STATION_ID")
 bergGEOM <-bergGEOM%>%st_as_sf( crs =3424, agr = "constant")
 gladGEOM <-gladGEOM%>%st_as_sf( crs =3424, agr = "constant")
-ggplot()+
-  geom_sf(data=bergGEOM, aes(color = late))
 
 
 
 
-bergGEOM <- bergGEOM%>%mutate(lateM = late/60,
-                              hour= hour(intervalhour),
-                              daynumeric= wday(intervalhour),
-                              week = week(intervalhour),
-                              weekday = weekdays(intervalhour),
-            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
-
-test<-bergGEOM%>%dplyr::filter(hour == 13 & week ==2)
 
 
 
-### MAPS 
+
+test<-bergGEOM%>%dplyr::filter(hour == 13 & week ==2 & daynumeric == 5)
+
+
+testG<-gladGEOM%>%dplyr::filter(hour == 13 & week ==2 & daynumeric == 5)
+
+
+
+
+
+
+
+
+
+
+```
+
+```{r stopseqEXPLORE }
+#exploring what it would take to gdamn stopsequence to work
+
+
+
+
+onetrain <-train.template%>%mutate(seqID = paste0(train.template$from_id,".", train.template$to_id))%>%mutate(seqID= as.character(seqID))%>%filter(train_id== "1859")
+
+
+
+```
+
+
+
+```{r MAPs}
+### MAPS ------
+
+
+## prep
 
 njGEO <- st_read("https://data.ci.newark.nj.us/dataset/db87f66a-6d79-4933-9011-f392fdce7eb8/resource/95db8cad-3a8c-41a4-b8b1-4991990f07f3/download/njcountypolygonv2.geojson")
 njGEO<-njGEO%>%st_transform(crs =3424)
 
-install.packages("basemaps")
-library(basemaps)
+nyc<- st_read("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/zip_code_040114.geojson?token=AVOS24OUEGLGAJL6MAR6GOLBXPUA4")
 
-basemap_ggplot(bergGEOM, map_service = "osm_stamen", map_type = "toner")
+gladcounties<-c( 	
+"Morris",
+"Somerset",	
+"Union", 	
+"Bergen",
+"Essex",
+"Hudson")
 
-bergMAP2<- ggplot()+
-  geom_sf(data=njGEO, fill="black")+
-geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
-          shape=21, color= 'grey10', alpha = 0.6,
-          aes(size = late, fill=late))+
-  #scale_size_manual(name = "Lateness",
-                    #labels = bergGEOM, "late")+
-  scale_fill_gradient( low = "#260a03",
-                          high = "#a81010",
-                          space = "Lab",
-                          na.value = "grey50",
-                          #guide = "colourbar",
-                          aesthetics = "colour",
-                          guide="none")+
+bergcounties<-c(	
+                "Morris",
+                "Sussex", 	
+                "Union", 	
+                "Bergen",
+                "Essex",
+                "Hudson", 	
+                "Passaic")
 
-  labs(title = "Mean Lateness By Stop", 
-       #subtitle = "By Tract, Boston 2013-2018",
-       caption = "Figure 3.1")+
-  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
-    ))+
-  facet_wrap(~ weekday)
-
-"#260a03", "#a81010"
+gladnjtrim <- njGEO%>%
+  filter(county %in% gladcounties)
+bergnjtrim <- njGEO%>%
+  filter(county %in% bergcounties)
 
 
-
-
-  scale_fill_brewer(
-    type = "seq",
-    palette = "BuPu",
-    direction = 1,
-    aesthetics = "fill", 
-    guide= "none"
-  )
-
-
-
-
-bergMAP<- ggplot()+
-  geom_sf(data=njGEO, fill="grey80")+
-geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
+bergMAP8<- ggplot()+
+  geom_sf(data=bergnjtrim, fill="grey80")+
+  geom_sf(data=nyc, fill="grey80")+
+geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2)%>% mutate(weekday = fct_reorder(weekday, daynumeric)),
           shape=21, color= 'grey10', alpha = 0.6,
           aes(size = q5(lateM),
               fill= q5(lateM)))+
@@ -365,22 +402,22 @@ geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
     aesthetics = "fill", 
     guide= "none"
   )+
-  labs(title = "Minutes Late By Stop 9:00 AM Hour ET", 
+  labs(title = "Bergen Co Line: Minutes Late By Stop 8:00 AM Hour ET")+ 
        #subtitle = "By Tract, Boston 2013-2018",
-       caption = "Figure 3.1")+
+       #caption = "Figure 3.1")+
   guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
     ))+
-      facet_wrap(~ weekday)#+mapTheme()
+      facet_wrap(~ weekday, ncol=7)+mapTheme()
 
-
-
-bergMAP3<- ggplot()+
-geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
+bergMAPnoon<- ggplot()+
+  geom_sf(data=bergnjtrim, fill="grey80")+
+  geom_sf(data=nyc, fill="grey80")+
+geom_sf(data = bergGEOM%>%dplyr::filter(hour == 5 & week ==2)%>% mutate(weekday = fct_reorder(weekday, daynumeric)),
           shape=21, color= 'grey10', alpha = 0.6,
-          aes(size = q5(late),
-              fill= q5(late)))+
+          aes(size = q5(lateM),
+              fill= q5(lateM)))+
   scale_size_manual(name = "Minutes Late",
-                    labels = qBr(bergGEOM, "late"),
+                    labels = qBr(bergGEOM, "lateM"),
                      values= c(1,2,3,4,5))+
   scale_fill_brewer(
     type = "seq",
@@ -389,12 +426,12 @@ geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
     aesthetics = "fill", 
     guide= "none"
   )+
-  labs(title = "Mean Lateness By Stop", 
+  labs(title = "Bergen Co Line: Minutes Late By Stop 12:00 PM Hour ET")+ 
        #subtitle = "By Tract, Boston 2013-2018",
-       caption = "Figure 3.1")+
+       #caption = "Figure 3.1")+
   guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
     ))+
-      facet_wrap(~ weekday)+mapTheme()
+      facet_wrap(~ weekday, ncol=7)+mapTheme()
 
 
 
@@ -402,28 +439,91 @@ geom_sf(data = bergGEOM%>%dplyr::filter(hour == 13 & week ==2),
 
 
 
+gladMAP8<- ggplot()+
+  geom_sf(data=gladnjtrim, fill="grey80")+
+geom_sf(data = gladGEOM%>%dplyr::filter(hour == 13 & week ==4)%>% mutate(weekday = fct_reorder(weekday, daynumeric)),
+          shape=21, color= 'grey10', alpha = 0.6,
+          aes(size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(bergGEOM, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "BuPu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Gladstone Branch: Minutes Late By Stop 8:00 AM Hour ET")+
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
+    ))+
+      facet_wrap(~ weekday, ncol = 5)+mapTheme()
 
-
-
-
-
-
-
-
-
-
-
-
+gladMAPnoon<- ggplot()+
+  geom_sf(data=gladnjtrim, fill="grey80")+
+geom_sf(data = gladGEOM%>%dplyr::filter(hour == 5 & week ==4)%>% mutate(weekday = fct_reorder(weekday, daynumeric)),
+          shape=21, color= 'grey10', alpha = 0.6,
+          aes(size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(bergGEOM, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "BuPu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Gladstone Branch: Minutes Late By Stop 12:00 PM Hour ET")+ 
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="BuPu"))
+    ))+
+      facet_wrap(~ weekday, ncol = 5)+mapTheme()
 
 ```
 
 
+```{r LAGPLOTS}
+###### LAG PLOTS -----
+
+
+### looking at previous stop 
+%>%group_by(stop_sequence, from)
+
+gladIntervalstops <- gladInterval%>%st_drop_geometry()%>%filter(hour ==13 & week==2 & weekday == "Monday")%>%distinct(stop_sequence, .keep_all=TRUE)%>%arrange(stop_sequence)#%>%
+                                                                                mutate(lagstop = dplyr::lag(late,1)) ## This is a Study Panel
+
+
+plotData.lag <-train.weather.panel%>%
+  filter(week == 2) %>%
+  dplyr::select(contains("rain"), late) %>%
+  gather(Variable, Value, -late) %>%
+  mutate(Variable = fct_relevel(Variable, "lag2Hoursrain","lag3Hoursrain",
+                                          "lag4Hoursrain","lag12Hoursrain","lag1dayrain"))
+correlation.lag <-
+  group_by(plotData.lag, Variable) %>%
+    summarize(correlation = round(cor(Value, late, use = "complete.obs"), 2)) 
 
 
 
 
 
+LAGplot <-ggplot(plotData.lag, aes(Value,late)) +
+  geom_point(size = 0.1) +
+  geom_text(data = correlation.lag, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "#a81010") +
+  facet_wrap(~Variable, ncol = 2, scales = "free") +
+  labs(title = "Train Delays as a Function of RainLag Delays",
+       subtitle = "One Week in 2019") +
+  plotTheme2()
 
+```
 
 ```{r studypanel}
 
@@ -439,6 +539,10 @@ study.panel <-
 NEWstudypanel<- rbind((gladInterval%>%mutate(line="Gladstone Branch")), (bergInterval%>%mutate(line="Bergen Co. Line")))
 
 ```
+
+
+
+
 
 ```{r trainpanel}
 
@@ -494,6 +598,29 @@ weather.Panel <-
 
 
 ```
+
+
+
+
+```{r quickreg}
+
+NEWweather.panel <- merge(x= NEWstudypanel, y= weather.Panel, by= 'intervalhour', all.x= T)
+
+
+quickreg<-  NEWweather.panel%>%dplyr::select(late, Percipitation)
+reg <- lm(late~ Percipitation, data=quickreg)
+
+quickreg$predvals <- fitted(reg)
+
+
+quick.plot<- ggplot(data=quickreg, aes(x=late, y=predvals)) +
+    geom_point() 
+
+```
+
+
+
+
 
 ```{r lags}
 train.weather.panel <- merge(x= train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
@@ -718,6 +845,7 @@ summary5.table <- tbl_regression(Model5, exponentiate = TRUE)
 ```
 
 
+
 ```{r Testprobs}
 ## TEST PROBS **MODEL 3 --- 50% THRESH**
 
@@ -730,12 +858,13 @@ testProbs3 <-
 
 ## 4
 
-testProbs4 <- data.frame(Outcome = as.factor(dataTest$y2_numeric),
+testProbs4 <- data.frame(
+                         Outcome = as.factor(dataTest$y2_numeric),
                          Probs = predict(Model4, dataTest, type="response"))
 
 testProbs4 <- 
   testProbs4 %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs4$Probs > 0.50 , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(testProbs4$Probs > 0.57 , 1, 0)))
 
 ## 5 
 testProbs5 <- data.frame(Outcome = as.factor(dataTest$y5_numeric),
@@ -748,6 +877,28 @@ testProbs5 <-
 
 
 ```
+
+
+```{r roc}
+
+
+## iterate THRESH
+testProbs4.thresholds <- 
+  iterateThresholds(data=testProbs4, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+testProbs4.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.57 identified
+
+aucTable <- 
+  testProbs4 %>% mutate(AUC = auc(Outcome,Probs)) %>% 
+  mutate(AUC = as.character(round(AUC, 3))) 
+
+
+
+```
+
+
+
 
 
 
@@ -776,7 +927,7 @@ testProbs5 <-
        title = "Fourth Model: Distribution of Predicted Probabilities by Observed Outcome",
        caption= "Fig.6") +
   theme(strip.text.x = element_text(size = 18),
-        legend.position = "none")
+        legend.position = "none")+plotTheme2()
  
  
 ## TEST PROBS PLOT **MODEL 5 --- 50% THRESH**
@@ -822,9 +973,9 @@ cvFit3.plot<- dplyr::select(cvFit3$resample, -Resample) %>%
   gather(metric, value) %>%
   left_join(gather(cvFit3$results[2:4], metric, mean)) %>%
   ggplot(aes(value)) + 
-  geom_histogram(bins=35, fill = "#FFB000") +
+  geom_histogram(bins=35, fill = "#93afdc") +
   facet_wrap(~metric) +
-  geom_vline(aes(xintercept = mean), colour = "#648FFF", linetype = 3, size = 1.5) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
   scale_x_continuous(limits = c(0, 1)) +
   labs(x="Goodness of Fit", y="Count", title="MODEL 3 Goodness of Fit Metrics",
        subtitle = "Across-fold mean reprented as dotted lines",
@@ -832,7 +983,7 @@ cvFit3.plot<- dplyr::select(cvFit3$resample, -Resample) %>%
   plotTheme2()
 
 
-
+("#a81010", "#f8cd12", "#93afdc")
 #### Model 4 ----
 
 
@@ -845,7 +996,7 @@ Model4.vars <- colnames(dataTest%>%dplyr::select(
 
 
 cvFit4 <- caret::train(y2 ~ .,
-                       data=dataTrain %>%dplyr::select(all_of(Model4.vars), y2), 
+                       data=dataTest %>%dplyr::select(all_of(Model4.vars), y2), 
                        method="glm", family="binomial",
                        metric="ROC", trControl = ctrl)
 
@@ -854,9 +1005,9 @@ cvFit4.plot <-dplyr::select(cvFit4$resample, -Resample) %>%
   gather(metric, value) %>%
   left_join(gather(cvFit4$results[2:4], metric, mean)) %>%
   ggplot(aes(value)) + 
-  geom_histogram(bins=35, fill = "#FFB000") +
+  geom_histogram(bins=35, fill = "#93afdc") +
   facet_wrap(~metric) +
-  geom_vline(aes(xintercept = mean), colour = "#648FFF", linetype = 3, size = 1.5) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
   scale_x_continuous(limits = c(0, 1)) +
   labs(x="Goodness of Fit", y="Count", title="MODEL 4 Goodness of Fit Metrics",
        subtitle = "Across-fold mean reprented as dotted lines",

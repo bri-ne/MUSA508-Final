@@ -70,6 +70,36 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 
 
+
+
+
+gladcounties<-c( 	
+"Morris",
+"Somerset",	
+"Union", 	
+"Bergen",
+"Essex",
+"Hudson")
+
+gladcounties<-c("Mercer", 	
+                "Middlesex",
+                "Monmouth", 	
+                "Morris",
+                "Somerset",	
+                "Sussex", 	
+                "Union", 	
+                "Warren",
+                "Bergen",
+                "Essex",
+                "Hudson", 	
+                "Hunterdon", 
+                "Passaic")
+
+gladnjtrim <- njGEO%>%
+  filter(county %in% gladcounties)
+
+
+
 var <- [""]
 
 census_api_key("791448772c9a051612b70516247f56b54176cfbf", overwrite = TRUE)
@@ -279,6 +309,7 @@ geom_point(aes(x = LONGITUDE, y = LATITUDE), data = stoplocations4326,
 
 ggplot()
 
+mapview(nj)
 
 
 nrow(study.panel)+nrow(train.template)  
