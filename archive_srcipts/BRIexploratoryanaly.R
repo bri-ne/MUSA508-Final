@@ -393,6 +393,162 @@ cvFit5.plot<- dplyr::select(cvFit5$resample, -Resample) %>%
 plot_grid(cvFit3.plot, cvFit4.plot, cvFit5.plot, nrow=3)
 
 
+# NEWER CODE ARCHIVE
+
+```{r newerCodeArchive, warning=FALSE, message=FALSE, include=FALSE, echo=FALSE}
+
+#### Model 3b ----
+
+
+#### Running the Model
+
+Model3b<- glm(y2_numeric ~ .,
+              data=gladTrain %>% 
+                dplyr::select(y2_numeric,
+                              from, to, onestoplag, twostoplag, weekday, hour),  
+              family="binomial" (link="logit"))
+
+
+
+summary3b.table <- tbl_regression(Model3b, exponentiate = TRUE)
+
+#### Setting up Predictions
+
+testProbs3b <- data.frame(Outcome = as.factor(gladTest$y2_numeric),
+                          Probs = predict(Model3b, gladTest, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn
+
+## TEST PROBS PLOT **MODEL 3b -- to figure out what threh**
+
+threeb<- ggplot(testProbs3b, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Third Model. B: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")#+plotTheme2()
+
+
+
+
+
+testProbs3b.thresholds <- 
+  iterateThresholds(data=testProbs3b, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+testProbs3b.thresholds<-testProbs3b.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.46 identified
+
+roc.3b<- ggplot(testProbs3b, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model 3b")+plotTheme2()
+
+
+testProbs3b <- 
+  testProbs3b %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs3b$Probs > 0.46 , 1, 0)))
+
+Model3b.vars <- colnames(gladModel.good%>%dplyr::select(from, to, onestoplag, twostoplag, weekday, hour))
+
+#### Cross Validation 
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+cvFit3b <- caret::train(y2 ~ .,
+                        data=gladModel.good %>%dplyr::select(all_of(Model3b.vars), y2), ### in the book, they cv on all the data
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+cvFit3b.plot<- dplyr::select(cvFit3b$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit3b$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="MODEL 3 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= "Fig.10") +
+  plotTheme2()
+
+pROC::auc(testProbs3b$Outcome, testProbs3b$Probs)
+
+
+
+
+
+
+## MODEL 3c ------
+
+#### Running the Model
+
+
+
+Model3c<- glm(y2_numeric ~ .,
+              data=gladTrain %>% 
+                dplyr::select(y2_numeric,
+                              stop_sequence, onestoplag, hour, toPenn.binary, tuesWed.binary),  
+              family="binomial" (link="logit"))
+
+summary3c.table <- tbl_regression(Model3c, exponentiate = TRUE) ### looks like tuesday or wednesday are sig but other days for this line are not
+
+
+
+#### Setting up Predictions
+
+
+testProbs3c <- data.frame(Outcome = as.factor(gladTest$y2_numeric),
+                          Probs = predict(Model3c, gladTest, type="response"))
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn
+
+## TEST PROBS PLOT **MODEL 3b -- to figure out what threh**
+
+
+threec<- ggplot(testProbs3c, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Third Model. B: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")#+plotTheme2()
+
+
+testProbs3c.thresholds <- 
+  iterateThresholds(data=testProbs3c, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+testProbs3c.thresholds<-testProbs3c.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.46 identified
+
+roc.3c<- ggplot(testProbs3c, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model 3b")#+plotTheme2()
+
+testProbs3c <- 
+  testProbs3c %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs3c$Probs > 0.46 , 1, 0)))
+
+
+plot_grid(threeb, threec, nrow = 2)
+
+pROC::auc(testProbs3c$Outcome, testProbs3c$Probs)
+
+
+
+
+```
+
 
 
 ```
@@ -796,3 +952,15 @@ gladTibble <- gladTibble%>%
 #,
 twostop_lag = map(.x = data, fit = reg2, .f = model_pred),
 threestop_lag = map(.x = data, fit = reg3, .f = model_pred))
+
+
+
+```{r bar}
+train.weather.panel %>%
+  group_by(line) %>% 
+  summarize(lateness = mean(late)) %>%
+  ggplot(aes(line, lateness)) + geom_bar(stat = "identity", color = palette2, fill= palette2) +
+  labs(title="Does Lateness Vary Depending on the Line?",
+       x="Line", y="Mean Seconds Late", color = "#0C0E1D") +
+  plotTheme2() 
+```

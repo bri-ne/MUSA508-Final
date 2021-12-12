@@ -16,13 +16,39 @@ editor_options:
     wrap: 72
 ---
 
+![eNJine
+Logo](https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/otherimagesMD/enjine.jpg)
 
 # ENGINEERING A BETTER COMMUTE
 
+If you have ever felt like New Jersey trains needed work, you are not
+wrong. In January 2019, stations across the New Jersey transit system
+experienced the equivalent of 614 days (about 1 year 8 months)' worth of
+delays.
 
+![ALT
+TEXT](https://static01.nyt.com/images/2018/08/09/nyregion/09njtransit1/merlin_141973050_e60da41c-1e46-4a4b-b59e-f23c41f77251-superJumbo.jpg)
 
+But what if you could know your train was running late before it was
+running late?
 
+With eNJine, you can do just that. No more rushing, only to wait. No
+more missing your connection. No more being late. At eNJine, our data
+scientists are dedicated to engineering a better commute for you.
 
+Our beta testing has focused on proving the feasibility of using machine
+learning to improve commuting. Currently, eNJine can predict whether
+trains will be departing within two minutes of their scheduled departure
+times two hours ahead.
+
+![Michael Scott struggles to get on a moving freight
+train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
+
+Our model works because we understand how New Jersey transit works.
+
+Below, you can see how train delays vary on days of the week and at
+certain stops. With this and other insight, we dial into exactly what
+causes New Jersey trains to be late, so you don't have to.
 
 ## GOALS FOR CODE AND CODE BELOW------
 
@@ -40,7 +66,7 @@ model put ins
 
 -   weather data
 
- model outputs 
+model outputs
 
 -   is the train going to be late over 2 mins. at pickup station? Y/N
 
@@ -50,17 +76,17 @@ Graphics - deliverable
 
 -   Y/N outcomes for any variables
 
-Codewise to do, next steps: 
+Codewise to do, next steps:
 
 -   ~~choose two lines~~
 
--   ~merge the weather~
+-   \~merge the weather\~
 
-    -   ~use this as a numeric variable at first~
+    -   \~use this as a numeric variable at first\~
 
 -   ~~merge stop location~~
 
-    -   ~each stop as cat variable~
+    -   \~each stop as cat variable\~
 
 -   at least get the code logistic regression
 
@@ -68,11 +94,7 @@ Codewise to do, next steps:
 
 -   last last step revise, feat engineer
 
-
-
-
 # SETUP -----
-
 
 ```{r initial, include=FALSE, warning=FALSE, message=FALSE}
 # Libraries -----------------
@@ -198,8 +220,8 @@ mapTheme2<-function(base_size = 12, title_size = 16) {
 
 ```
 
-
 ## Bringing in the RAW Data ----
+
 ```{r datatrains,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 # Data -----------
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
@@ -209,7 +231,6 @@ mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main
 weather.Data <- 
   riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
 ```
-
 
 ```{r wrangledate,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 njtransitdf <- rbind(jan2019, feb2019, mar2019)
@@ -233,10 +254,7 @@ stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X",
 #stoplocations <- stoplocations %>%st_as_sf(coords = c("ï..X", "Y"), crs =3424, agr = "constant") 
 ```
 
-
-
-## New Approach- Lines Specific Models 
-
+## New Approach- Lines Specific Models
 
 ```{r template,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -373,21 +391,12 @@ gladGEOM <-gladGEOM%>%st_as_sf( crs =3424, agr = "constant")
 
 ```
 
-
-##  Getting Stop Lag
+## Getting Stop Lag
 
 No weather yet.
 
-Steps
--   Just doing this for one train first?
--   get only regression variables
--   make stop lag
--   divide train and test 
--   run regression
-
-
-
-
+Steps - Just doing this for one train first? - get only regression
+variables - make stop lag - divide train and test - run regression
 
 ### Stop Lag & Prepping Models:
 
@@ -504,13 +513,10 @@ bergTest <- filter(bergModel.good, week >= 9)
 
 ```
 
-
-
-
 ### Getting Weather Data
 
-
 #### Weather Data
+
 ```{r dataweather,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 # Data -----------
 weather.Panel <-  
@@ -592,14 +598,13 @@ berg.weather.panel[c("lag1Hourwind",  "lag2Hourswind", "lag3Hourswind", "lag4Hou
 
 ```
 
-
-## Running  Models
+## Running Models
 
 -   Model 1: Weather, Stoplag, Hourlag
 -   Model 2: Weather and Stoplag
 -   Model 3: Weather and Hourlag
--   Model 4: Stoplag and Houralg 
--   Model 5: SqrootWeather, Stoplag and Houralg 
+-   Model 4: Stoplag and Houralg
+-   Model 5: SqrootWeather, Stoplag and Houralg
 
 ```{r MODELs,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -858,7 +863,6 @@ bergsummary5.table <- tbl_regression(bergModel5, exponentiate = TRUE)
 
 
 ```
-
 
 ## Cross Validation
 
@@ -1225,8 +1229,8 @@ plot_grid(bergcvFit1.plot, bergcvFit2.plot, bergcvFit3.plot, bergcvFit4.plot, be
 
 ```
 
-
 ## Predictions
+
 ```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
 
@@ -1345,7 +1349,6 @@ bergroc.1<- ggplot(bergtestProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
 
 
 ```
-
 
 ```{r PREDICTIONS2, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -1474,7 +1477,6 @@ bergroc.2<- ggplot(bergtestProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
 
 
 ```
-
 
 ```{r PREDICTIONS3, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -1611,7 +1613,6 @@ bergroc.3<- ggplot(bergtestProbs3, aes(d = as.numeric(Outcome), m = Probs)) +
 
 
 ```
-
 
 ```{r PREDICTIONS4, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -1865,7 +1866,6 @@ bergroc.5<- ggplot(bergtestProbs5, aes(d = as.numeric(Outcome), m = Probs)) +
 
 ```
 
-
 ```{r allPredPlot}
 
 
@@ -1873,8 +1873,6 @@ plot_grid( glad1, berg1, glad2, berg2, glad3, berg3, glad4, berg4, glad5, berg5,
 plot_grid( gladroc.1, bergroc.1, gladroc.2, bergroc.2, gladroc.3, bergroc.3, gladroc.4, bergroc.4, gladroc.5, bergroc.5,nrow = 5)
 
 ```
-
-
 
 ## Visuals --- SOME OLD SOME STILL USEFUL
 
@@ -1902,8 +1900,6 @@ resutlsbar <- gladbergthresh%>%
 resultsbar
 
 ```
-
-
 
 ```{r MAPs}
 ### MAPS ------
@@ -2097,7 +2093,6 @@ gladMAPnoon<- pGLAD + geom_point(data = mapglad12,
 
 ```
 
-
 ```{r LAGPLOTS}
 ###### LAG PLOTS -----
 
@@ -2218,9 +2213,7 @@ LAGplot <-ggplot(plotData.lag, aes(Value,late)) +
 
 ```
 
-
-
-```{r bar, fig.width=10, fig.height=12} 
+```{r bar, fig.width=10, fig.height=12}
 
 
  #f2fdff
@@ -2255,6 +2248,3 @@ plot_grid(glad.origin, berg.origin, nrow=1, align = "h")
 
 
 ```
-
-
-
