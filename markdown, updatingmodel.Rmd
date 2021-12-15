@@ -1,0 +1,184 @@
+---
+title: "Final Project"
+author: "Cypress Marrs, Briana Cervantes"
+date: "12/3/2021"
+output:
+  html_document:
+    toc: true 
+    toc_float: true 
+    toc_depth: 6
+    theme: yeti
+    highlight: textmate
+    code_folding: "hide"
+    css: style.css
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+```{r initial, include=FALSE, warning=FALSE, message=FALSE}
+# Libraries -----------------
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(sf)
+library(tidycensus)
+library(tidyverse)
+library(tigris)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(caret)
+library(knitr) 
+library(pscl)
+library(plotROC)
+library(gtsummary) #for table cause broom always f's everything up
+library(pROC)
+library(tibble)
+library(cowplot)
+## FOR MAPS ~~
+library(RColorBrewer)
+library(ggmap)  
+library(maps)
+library(mapdata)
+
+
+
+options(tigris_class = "sf")
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+
+palette6 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette5 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette4 <- c("#a81010", "#f8cd12", "#93afdc", "#0c0e1d" )
+
+palette3 <- c("#a81010", "#f8cd12", "#93afdc")
+
+palette2 <- c("#260a03", "#a81010")
+
+palette2b <- c( "#260a03", "#f8cd12")
+
+plotTheme2 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background =element_blank(), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "#93afdc", fill=NA, size=4),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#93afdc", color = "#93afdc"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#0c0e1d")
+  )
+}
+
+
+plotTheme3 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background=element_rect(fill = "#93afdc", color = "#f2fdff"), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border =element_blank(),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#f2fdff", color = "#f2fdff"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#f2fdff")
+  )
+}
+
+
+
+mapTheme2<-function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size,colour = "#0c0e1d", family="Helvetica"),
+    plot.subtitle=element_text(face="italic", family="Helvetica"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "#93afdc", fill=NA, size=2),
+    strip.text.x = element_text(size = 14, color="#0c0e1d", family="Helvetica"),
+    strip.background  = element_rect(fill="#93afdc", color="#93afdc"))
+}
+
+```
+```{r rawdata,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+# Data -----------
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_01.csv?token=AVOS24NFX2PEGNUZQUPRNY3BXYPQY")
+feb2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_02.csv?token=AVOS24PUUJDM2PW36N5T6K3BXYPQ4")
+mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_03.csv?token=AVOS24MRII4RKEMYGNWWUSDBXYPQ6")
+weather.Data <- 
+  riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
+```
+```{r wrangledate,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+njtransitdf <- rbind(jan2019, feb2019, mar2019)
+
+
+njtransitdf <- njtransitdf %>% 
+  mutate(scheduled_time_dt = as_datetime(scheduled_time),
+         actual_time_dt = as_datetime(actual_time),
+         delay_dt = seconds(as.integer(delay_minutes*60)), 
+         intervalhour = floor_date(scheduled_time_dt, unit= "hour"),
+         week = week(intervalhour)) %>%
+  na.omit(delay_dt)
+
+```
+```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
+
+#stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+
+stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+```
+```{r studypanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+train.template <- 
+  filter(njtransitdf, week %in% c(1: 10))%>%filter(line == "Bergen Co. Line " | line == "Gladstone Branch")
+
+study.panel <- 
+  expand.grid(interval60 = unique(train.template$intervalhour), 
+              from = unique(train.template$from),
+              to = unique(train.template$to),
+              line= unique(train.template$line))
+```
+```{r trainpanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+train.panel <- merge(train.template, study.panel, by.x= c("intervalhour", "from",  "line"), by.y=c("interval60", "from",  "line"), all.y=TRUE)
+```
+
+
+

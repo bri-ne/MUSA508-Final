@@ -122,8 +122,7 @@ library(RColorBrewer)
 library(ggmap)  
 library(maps)
 library(mapdata)
-#install.packages("sfnetworks")
-library(sfnetworks)
+
 
 
 options(tigris_class = "sf")
@@ -249,9 +248,9 @@ njtransitdf <- njtransitdf %>%
 ```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
-stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+#stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 
-#stoplocations <- stoplocations %>%st_as_sf(coords = c("ï..X", "Y"), crs =3424, agr = "constant") 
+stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 ```
 
 ## New Approach- Lines Specific Models
@@ -280,7 +279,8 @@ bergInterval <- berg%>%group_by(train_id, stop_sequence, from, to, intervalhour)
                                                                                          lag4Hours = dplyr::lag(late,4),
                                                                                          lag12Hours = dplyr::lag(late,12),
                                                                                          lag1day = dplyr::lag(late,24),
-                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel               
+                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel    
+
 
 ## JUST GLADSTONE, *Not Grouped By Anything* 
 
@@ -476,7 +476,7 @@ bergModel<-bergModel%>%dplyr::select(
     ## GLAD
 
 gladModel.good <-gladModel%>%group_by(train_id)%>%arrange(stop_sequence)%>%mutate(onestoplag = dplyr::lag(late),
-                                                                          twostoplag = dplyr::lag(late))%>%ungroup()
+                                                                          twostoplag = dplyr::lag(late,2))%>%ungroup()
 
 gladModel.good[c("onestoplag","twostoplag")][is.na(gladModel.good[c("onestoplag","twostoplag")])] <- 0 
 
@@ -549,7 +549,8 @@ glad.weather.panel%>%
       group_by(intervalhour) %>% 
     arrange(intervalhour) %>% 
 
-    mutate(lag1Hourwind = dplyr::lag(Wind_Speed,1),
+    mutate(
+            lag1Hourwind = dplyr::lag(Wind_Speed,1),
            lag2Hourswind = dplyr::lag(Wind_Speed,2),  ##taking note from the pres today about windspeed 
            lag3Hourswind = dplyr::lag(Wind_Speed,3),
            lag4Hourswind = dplyr::lag(Wind_Speed,4),
@@ -625,9 +626,25 @@ set.seed(2121)
 bergTrainW <- filter(berg.weather.panel, week < 9)
 bergTestW <- filter(berg.weather.panel, week >= 9)
 
+```
 
+```{r corrplots}
+library(ggcorrplot)
 
+numericVars <- 
+  select_if(berg.weather.panel, is.numeric) %>% na.omit()
 
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation across numeric variables") 
+
+```
+
+```{r runningthemodel}
 
 
 #### Running the Model
@@ -1229,6 +1246,7 @@ plot_grid(bergcvFit1.plot, bergcvFit2.plot, bergcvFit3.plot, bergcvFit4.plot, be
 
 ```
 
+
 ## Predictions
 
 ```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
@@ -1431,7 +1449,7 @@ gladroc.2<- ggplot(gladtestProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
   labs(x = "Late Over 2 Mins", y = "Density of probabilities",
-       title = "BERG Model 2: Distribution of Predicted Probabilities by Actual Outcome",
+       title = "BERG Model 2: Distribution of Predicted \nProbabilities by Actual Outcome",
        caption= " ") +
   theme(strip.text.x = element_text(size = 18),
         legend.position = "none")+plotTheme2()
@@ -1469,7 +1487,7 @@ bergroc.2<- ggplot(bergtestProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
 
 
 
-
+ berg2
 
 
 
@@ -1973,7 +1991,7 @@ mapG <- get_snazzymap(center = 'South Orange, New Jersey',
 
 
 
-ggmap(map) ### <---- preveiew it with this 
+#ggmap(map) ### <---- preveiew it with this 
 
 
 pBERG <- ggmap(mapB, darken = 0.6) ## <---- then save this map to a var 
