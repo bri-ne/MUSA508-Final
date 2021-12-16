@@ -258,21 +258,6 @@ stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][i
 
 train.weather.panel.lags.final <- left_join(train.weather.panel.lags, stoplag, by=c("line", "intervalhour", "from"))
 ```
-```{r corrplots, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-library(ggcorrplot)
-
-numericVars <- 
-  select_if(train.weather.panel.lags.final, is.numeric) %>% na.omit()
-
-corrplot <- ggcorrplot( 
-  round(cor(numericVars), 1), 
-  p.mat = cor_pmat(numericVars),
-  colors = c("#260a03", "white", "#a81010"),
-  type="lower",
-  insig = "blank") +  
-    labs(title = "Correlation Across Numeric Variables") 
-corrplot
-```
 
 ```{r harmonizestationnames, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -288,8 +273,8 @@ station_id <- unique(stoplocations$STATION_ID)
 train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Hoboken", "Hoboken Terminal")
 train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Hoboken", "Hoboken Terminal")
 
-train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
-train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Secaucus Upper Lvl", "Secaucus Junction Lower Level")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Upper Lvl", "Secaucus Junction Lower Level")
 
 stoplocations <- stoplocations%>%mutate(STATION_ID = ifelse(COUNTY == "Orange, NY" & STATION_ID == "Middletown", "Middletown NY", STATION_ID))
 
@@ -310,17 +295,11 @@ train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, tr
 train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Ramsey Route 17", "Rte 17 Ramsey")
 train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
 
-panelnoGEOM <- train.weather.panel.lags.final %>%
-  mutate(STATION_ID = from) %>%
-  dplyr::select(-from)
-
-panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
-  st_as_sf(crs =3424, agr = "constant")
 
 ```
 
 ```{r finalsetup, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-panelnoGEOM <- panelnoGEOM %>% 
+panelnoGEOM <- train.weather.panel.lags.final %>% 
   mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
          y2 = ifelse(late < minutes(2), "no", "yes"),
          lateM = late/60,
@@ -336,24 +315,44 @@ panelnoGEOM <- panelnoGEOM %>%
          toSigStop = ifelse(to == "Broadway Fair Lawn"| to == "Mahwah" | to == "Ramsey Main St"| to == "Waldwick", 0, 1),
          week_numeric = as.numeric(week))
 
+panelnoGEOM <- panelnoGEOM %>%
+  mutate(STATION_ID = from) 
+
+panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
+  st_as_sf(crs =3424, agr = "constant")
+
 set.seed(2121)
 panelnoGEOMTrain <- filter(panelnoGEOM, week < 2) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
 panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 ```
+
+```{r corrplots, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+library(ggcorrplot)
+
+numericVars <- 
+  select_if(panelnoGEOM, is.numeric) %>% na.omit()
+
+corrplot <- ggcorrplot( 
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#260a03", "white", "#a81010"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation Across Numeric Variables") 
+corrplot
+```
+
 ```{r models}
 Model1<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
                           dplyr::select(y2_numeric,
-                                        station_id, 
-                                        train_count,
-                                        onestoplag,
+                                        total_departures,
+                                        from,
+                                        line,
                                         hour,
-                                        weekday, 
-                                        lag2Hours,
-                                        lag3Hours,
-                                        lag4Hours,
                                         lag1week,
+                                        weekday,
                                         lag1day,
                                         toPenn.binary, 
                                         tuesWed.binary, 
@@ -364,43 +363,14 @@ Model1<- glm(y2_numeric ~ .,
                                         sqrtlag2Hours,
                                         sqrtlag3Hours,
                                         sqrtlag4Hours,
-                                        sqrtlag1day,
-                                        sqrtlag2hourstotal_departures,
                                         sqrtlag1week,
-                                        lag4Hourswind),  
+                                        lag3Hourstemp),  
                         family="binomial" (link="logit"))
 
 
-Model2<- glm(y2_numeric ~ .,
-                        data=panelnoGEOMTrain %>% 
-                          dplyr::select(y2_numeric,
-                                        station_id, 
-                                         train_count,
-                                        onestoplag,
-                                        hour,
-                                        weekday,
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        sqrtlag2Hours,
-                                        sqrtlag3Hours,
-                                        sqrtlag4Hours,
-                                        sqrtlag1day,
-                                        toPenn.binary, 
-                                        tuesWed.binary, 
-                                        friWed.binary,
-                                        toSigStop,
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        sqrtlag2hourstotal_departures,
-                                        sqrtlag1week,
-                                        lag4Hourswind),  
-                        family="binomial" (link="logit"))
 
 #model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
 
-#model2summary.table <- tbl_regression(Model2, exponentiate = TRUE)
-
-#commented these out b/c making the tables melts my computer? 
 ```
 ```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -413,15 +383,12 @@ ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFuncti
 
 
 Model1.vars <- colnames(panelnoGEOMTrain %>% 
-                          dplyr::select(station_id, 
-                                        train_count,
-                                        onestoplag,
+                          dplyr::select(total_departures,
+                                        from,
                                         hour,
-                                        weekday, 
-                                        lag2Hours,
-                                        lag3Hours,
-                                        lag4Hours,
+                                        line,
                                         lag1week,
+                                        weekday,
                                         lag1day,
                                         toPenn.binary, 
                                         tuesWed.binary, 
@@ -432,10 +399,8 @@ Model1.vars <- colnames(panelnoGEOMTrain %>%
                                         sqrtlag2Hours,
                                         sqrtlag3Hours,
                                         sqrtlag4Hours,
-                                        sqrtlag1day,
-                                        sqrtlag2hourstotal_departures,
                                         sqrtlag1week,
-                                        lag4Hourswind))
+                                        lag3Hourstemp))
 
 ModelcvFit1 <- caret::train(y2 ~ .,
                         data=panelnoGEOMTrain %>% 
@@ -443,26 +408,7 @@ ModelcvFit1 <- caret::train(y2 ~ .,
                         method="glm", family="binomial",
                         metric="ROC", trControl = ctrl)
 ```
-```{r crossvalidation2}
-Model2.vars <- colnames(panelnoGEOMTrain %>% 
-                          dplyr::select(station_id, 
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        sqrtlag2Hours,
-                                        sqrtlag3Hours,
-                                        sqrtlag4Hours,
-                                        sqrtlag1day,
-                                        sqrtlag2hourstotal_departures,
-                                        sqrtlag1week,
-                                        lag4Hourswind))
 
-ModelcvFit2 <- caret::train(y2 ~ .,
-                        data=panelnoGEOMTrain %>% 
-                          dplyr::select(all_of(Model2.vars), y2), 
-                        method="glm", family="binomial",  na.action = na.pass,
-                        metric="ROC", trControl = ctrl)
-
-```
 ```{r goodnessmetrics}
 
 ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
@@ -478,21 +424,6 @@ ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
        caption= " ") +
   plotTheme2()
 
-ModelcvFit2.plot<- dplyr::select(ModelcvFit2$resample, -Resample) %>%
-  gather(metric, value) %>%
-  left_join(gather(ModelcvFit2$results[2:4], metric, mean)) %>%
-  ggplot(aes(value)) + 
-  geom_histogram(bins=35, fill = "#93afdc") +
-  facet_wrap(~metric) +
-  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
-  scale_x_continuous(limits = c(0, 1)) +
-  labs(x="Goodness of Fit", y="Count", title="Model 2 Goodness of Fit Metrics",
-       subtitle = "Across-fold mean reprented as dotted lines",
-       caption= " ") +
-  plotTheme2()
-
-model1_model2GOF <- plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1) # BRI, deliverable
-
 ```
 
 ```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
@@ -502,17 +433,12 @@ model1_model2GOF <- plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1
 
     ## Model 1
 
-ModelProbs1 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
-                         Probs = predict(Model1, panelnoGEOMTest %>% dplyr::select(all_of(Model1.vars))
-                                         , type="response")) 
-### Bri : this is throwing up an error: I think it is because I am testing/training on smaller subsets of the total data--I suspect that you won't run into any issues 
-    
-## Model 2
+panelnoGEOMTest$from[panelnoGEOMTest$from == "Secaucus Junction Upper Level"] <- "Secaucus Junction Lower Level"   
 
-ModelProbs2 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
-                         Probs = predict(Model2, panelnoGEOMTest, type="response"))
+ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
 
-### Bri : this is throwing up an error: I think it is because I am testing/training on smaller subsets of the total data--I suspect that you won't run into any issues 
+ModelProbs1[c("Probs")][is.na(ModelProbs1[c("Probs")])] <- 0 ###############I DID A WEIRD THING HERE BECAUSE THERE WERE A TON OF NA'S IN OUR MODELPROBS1 : it has resulted in a severly over fit model.m 
 
     ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -527,61 +453,28 @@ ModelProbs2 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
   theme(strip.text.x = element_text(size = 18),
         legend.position = "none")+plotTheme2()
 
- 
- ModeltestProbs1.thresholds <- 
+  
+ModelProbs1.thresholds <- 
   iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
                     predictedProbs = Probs)
 
-ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## 
+ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .39
 
-gladtestProbs1 <- 
+modeltestProbs1 <- 
   ModelProbs1 %>%
-  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > ### , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .39 , 1, 0)))
 
 
-Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.7465
+Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
 
 
 Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
   geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
-  labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(gladauc1[1], digits=3)) )+plotTheme2()
+  labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(Modelauc1[1], digits=3)) )+plotTheme2()
 
-   ## MODEL 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
- model2plot<- ggplot(ModelProbs2, aes(x = Probs, fill = as.factor(Outcome))) + 
-  geom_density() +
-  facet_grid(Outcome ~ .) +
-  scale_fill_manual(values = palette2) +
-  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
-       title = "Model 1: Distribution of Predicted Probabilities by Actual Outcome",
-       caption= " ") +
-  theme(strip.text.x = element_text(size = 18),
-        legend.position = "none")+plotTheme2()
-
- 
- ModeltestProbs2.thresholds <- 
-  iterateThresholds(data=ModelProbs2, observedClass = Outcome, 
-                    predictedProbs = Probs)
-
-ModelProbs2.thresholds<-ModelProbs2.thresholds%>%arrange(Rate_TP,Rate_TN) ## 
-
-gladtestProbs2 <- 
-  ModelProbs2 %>%
-  mutate(predOutcome  = as.factor(ifelse(ModelProbs2$Probs > , 1, 0)))
-
-
-Modelauc2<-pROC::auc(ModelProbs2$Outcome, ModelProbs2$Probs) #0.7465
-
-
-Modelroc.2<- ggplot(ModelProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
-  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
-  style_roc(theme = theme_grey) +
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
-  labs(title = "ROC Curve - Model 2", subtitle = paste("AUC:", round(gladauc1[1], digits=3)) )+plotTheme2()
-
+  
 ```
 ## Visuals --- SOME OLD SOME STILL USEFUL
 
