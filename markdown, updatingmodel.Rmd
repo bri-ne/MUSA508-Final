@@ -311,7 +311,8 @@ train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, tr
 train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
 
 panelnoGEOM <- train.weather.panel.lags.final %>%
-  mutate(STATION_ID = from)
+  mutate(STATION_ID = from) %>%
+  dplyr::select(-from)
 
 panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
   st_as_sf(crs =3424, agr = "constant")
@@ -336,7 +337,7 @@ panelnoGEOM <- panelnoGEOM %>%
          week_numeric = as.numeric(week))
 
 set.seed(2121)
-panelnoGEOMTrain <- filter(panelnoGEOM, week < 2)
+panelnoGEOMTrain <- filter(panelnoGEOM, week < 2) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
 panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 ```
@@ -344,7 +345,7 @@ panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 Model1<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
                           dplyr::select(y2_numeric,
-                                        from, 
+                                        station_id, 
                                         train_count,
                                         onestoplag,
                                         hour,
@@ -373,13 +374,23 @@ Model1<- glm(y2_numeric ~ .,
 Model2<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
                           dplyr::select(y2_numeric,
-                                        from, 
+                                        station_id, 
+                                         train_count,
+                                        onestoplag,
+                                        hour,
+                                        weekday,
                                         onestopearlieron,
                                         twostopearlieron,
                                         sqrtlag2Hours,
                                         sqrtlag3Hours,
                                         sqrtlag4Hours,
                                         sqrtlag1day,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        friWed.binary,
+                                        toSigStop,
+                                        onestopearlieron,
+                                        twostopearlieron,
                                         sqrtlag2hourstotal_departures,
                                         sqrtlag1week,
                                         lag4Hourswind),  
@@ -402,8 +413,7 @@ ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFuncti
 
 
 Model1.vars <- colnames(panelnoGEOMTrain %>% 
-                          dplyr::select(y2_numeric,
-                                        from, 
+                          dplyr::select(station_id, 
                                         train_count,
                                         onestoplag,
                                         hour,
@@ -429,15 +439,13 @@ Model1.vars <- colnames(panelnoGEOMTrain %>%
 
 ModelcvFit1 <- caret::train(y2 ~ .,
                         data=panelnoGEOMTrain %>% 
-                        na.exclude(  
-                          dplyr::select(all_of(Model1.vars), y2)), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                          dplyr::select(all_of(Model1.vars), y2), na.action = na.pass,
                         method="glm", family="binomial",
                         metric="ROC", trControl = ctrl)
 ```
 ```{r crossvalidation2}
 Model2.vars <- colnames(panelnoGEOMTrain %>% 
-                          dplyr::select(y2_numeric,
-                                        from, 
+                          dplyr::select(station_id, 
                                         onestopearlieron,
                                         twostopearlieron,
                                         sqrtlag2Hours,
@@ -450,9 +458,8 @@ Model2.vars <- colnames(panelnoGEOMTrain %>%
 
 ModelcvFit2 <- caret::train(y2 ~ .,
                         data=panelnoGEOMTrain %>% 
-                        na.exclude(  
-                          dplyr::select(all_of(Model2.vars), y2)), ### in the book, they cv on all the data but i'm pretty sure it should just be train
-                        method="glm", family="binomial",
+                          dplyr::select(all_of(Model2.vars), y2), 
+                        method="glm", family="binomial",  na.action = na.pass,
                         metric="ROC", trControl = ctrl)
 
 ```
@@ -484,7 +491,7 @@ ModelcvFit2.plot<- dplyr::select(ModelcvFit2$resample, -Resample) %>%
        caption= " ") +
   plotTheme2()
 
-plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1)
+model1_model2GOF <- plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1) # BRI, deliverable
 
 ```
 
@@ -496,12 +503,16 @@ plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1)
     ## Model 1
 
 ModelProbs1 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
-                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
-
-    ## Model 2
+                         Probs = predict(Model1, panelnoGEOMTest %>% dplyr::select(all_of(Model1.vars))
+                                         , type="response")) 
+### Bri : this is throwing up an error: I think it is because I am testing/training on smaller subsets of the total data--I suspect that you won't run into any issues 
+    
+## Model 2
 
 ModelProbs2 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
                          Probs = predict(Model2, panelnoGEOMTest, type="response"))
+
+### Bri : this is throwing up an error: I think it is because I am testing/training on smaller subsets of the total data--I suspect that you won't run into any issues 
 
     ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
