@@ -168,17 +168,224 @@ stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr 
 ```
 ```{r studypanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 train.template <- 
-  filter(njtransitdf, week %in% c(1: 10))%>%filter(line == "Bergen Co. Line " | line == "Gladstone Branch")
+  filter(njtransitdf, week %in% c(1: 10)) %>%
+  filter(line == "Bergen Co. Line " | line == "Gladstone Branch")%>%
+  mutate(train_counter=1)%>%
+  group_by(line, intervalhour, from) %>%
+  summarize(train_count = sum(train_counter, na.rm=T),
+            late = mean(delay_dt))
 
 study.panel <- 
-  expand.grid(interval60 = unique(train.template$intervalhour), 
+  expand.grid(intervalhour = unique(train.template$intervalhour), 
               from = unique(train.template$from),
-              to = unique(train.template$to),
               line= unique(train.template$line))
 ```
 ```{r trainpanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-train.panel <- merge(train.template, study.panel, by.x= c("intervalhour", "from",  "line"), by.y=c("interval60", "from",  "line"), all.y=TRUE)
+train.panel <- train.template %>%
+  right_join(study.panel)
+```
+```{r weather, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+weather.Panel <-  
+  weather.Data %>%
+    mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
+    replace(is.na(.), 0) %>%
+    mutate(intervalhour = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(dotw = wday(intervalhour, label=TRUE)) %>%
+    group_by(intervalhour) %>%
+    summarize(Temperature = max(tmpf),
+              Percipitation = sum(p01i),
+              Wind_Speed = max(sknt)) %>%
+    mutate(Temperature = ifelse(Temperature == 0, 42, Temperature)) 
+
+train.weather.panel <- merge(x=train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
+
 ```
 
+```{r fixna, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
+train.weather.panel[c("late","train_count")][is.na(train.weather.panel[c("late","train_count")])] <- 0 
+
+```
+```{r buildingtimelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+lag.df <- train.weather.panel %>%
+  group_by(line, intervalhour) %>%
+  summarise(avg_late = mean(late),
+            total_departures = sum(train_count),
+            Temperature = mean(Temperature), 
+            Percipitation = mean(Percipitation),
+            Wind_Speed = mean(Wind_Speed)) %>%
+  mutate(lag2Hours = dplyr::lag(avg_late,2),
+         lag3Hours = dplyr::lag(avg_late,3),
+         lag4Hours = dplyr::lag(avg_late,4),
+         lag12Hours = dplyr::lag(avg_late,12),
+         lag1day = dplyr::lag(avg_late,24),
+         lag1week = dplyr::lag(avg_late, 168), 
+         sqrtlag2Hours = sqrt(lag2Hours),
+         sqrtlag3Hours = sqrt(lag3Hours),
+         sqrtlag4Hours = sqrt(lag4Hours),
+         sqrtlag12Hours = sqrt(lag12Hours),
+         sqrtlag1day = sqrt(lag1day),
+         sqrtlag1week = sqrt(lag1week),
+         sqrtlag2hourstotal_departures = sqrt(dplyr::lag(total_departures)),
+         lag2Hourswind = dplyr::lag(Wind_Speed,2),
+         lag3Hourswind = dplyr::lag(Wind_Speed,3),
+         lag4Hourswind = dplyr::lag(Wind_Speed,4),
+         lag12Hourswind = dplyr::lag(Wind_Speed,12),
+         lag3Hourstemp = dplyr::lag(Temperature,3),
+        lag3HoursPercipitation = dplyr::lag(Percipitation,3))
+
+train.weather.panel.lags = merge(train.weather.panel, lag.df, by=c("line", "intervalhour"))
+
+train.weather.panel.lags[c("lag2Hours","lag3Hours","lag4Hours", "lag12Hours", "lag1day", "lag1week",
+                           "sqrtlag2Hours", "sqrtlag3Hours", "sqrtlag4Hours", "sqrtlag12Hours", "sqrtlag1day", "sqrtlag1week", "sqrtlag2hourstotal_departures", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag3Hourstemp", "lag3HoursPercipitation")][is.na(train.weather.panel.lags[c("lag2Hours","lag3Hours","lag4Hours", "lag12Hours", "lag1day", "lag1week", "sqrtlag2Hours", "sqrtlag3Hours", "sqrtlag4Hours", "sqrtlag12Hours", "sqrtlag1day", "sqrtlag1week", "sqrtlag2hourstotal_departures", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag3Hourstemp", "lag3HoursPercipitation")])] <- 0 
+
+```
+
+```{r spacelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+stoplag<- njtransitdf %>%
+ filter(week %in% c(1: 10)) %>%
+ filter(line == "Bergen Co. Line " | line == "Gladstone Branch")%>%
+ group_by(line, train_id)%>%arrange(stop_sequence)%>%
+  mutate(onestoplag = dplyr::lag(delay_minutes),
+         twostoplag = dplyr::lag(delay_minutes,2)) %>%
+  ungroup() %>%
+  group_by(line, from, intervalhour) %>%
+  summarise(onestoplag = mean(onestoplag), twostoplag=mean(twostoplag)) %>%
+  mutate(onestopearlieron = dplyr::lag(onestoplag,1), twostopearlieron = dplyr::lag(twostoplag,2))%>%
+  dplyr::select(intervalhour, line, from, onestoplag, twostoplag, onestopearlieron, twostopearlieron) 
+
+stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][is.na(stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")])] <- 0
+
+train.weather.panel.lags.final <- left_join(train.weather.panel.lags, stoplag, by=c("line", "intervalhour", "from"))
+```
+```{r corrplots, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+library(ggcorrplot)
+
+numericVars <- 
+  select_if(train.weather.panel.lags.final, is.numeric) %>% na.omit()
+
+corrplot <- ggcorrplot( 
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#260a03", "white", "#a81010"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation Across Numeric Variables") 
+corrplot
+```
+
+```{r harmonizestationnames, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+  ## First, merge with stop data:
+  
+
+station_id <- unique(stoplocations$STATION_ID)
+
+  ### Getting the names the same 
+      
+      ## GLAD ~~~~
+
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Hoboken", "Hoboken Terminal")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Hoboken", "Hoboken Terminal")
+
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+
+stoplocations <- stoplocations%>%mutate(STATION_ID = ifelse(COUNTY == "Orange, NY" & STATION_ID == "Middletown", "Middletown NY", STATION_ID))
+
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Broadway Fair Lawn", "Broadway")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Hoboken", "Hoboken Terminal")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Radburn Fair Lawn", "Radburn")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Ramsey Main St", "Ramsey")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Ramsey Route 17", "Rte 17 Ramsey")
+train.weather.panel.lags.final$from<-replace(train.weather.panel.lags.final$from, train.weather.panel.lags.final$from == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
+
+
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Broadway Fair Lawn", "Broadway")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Hoboken", "Hoboken Terminal")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Radburn Fair Lawn", "Radburn")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Ramsey Main St", "Ramsey")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Ramsey Route 17", "Rte 17 Ramsey")
+train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, train.weather.panel.lags.final$to == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
+
+panelnoGEOM <- train.weather.panel.lags.final %>%
+  mutate(STATION_ID = from)
+
+panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
+  st_as_sf(crs =3424, agr = "constant")
+
+```
+
+```{r finalsetup, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+panelnoGEOM <- panelnoGEOM %>% 
+  mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
+         y2 = ifelse(late < minutes(2), "no", "yes"),
+         lateM = late/60,
+         hour= hour(intervalhour),
+         daynumeric= wday(intervalhour),
+         week = week(intervalhour),
+         weekday = weekdays(intervalhour),
+         y5_numeric = ifelse(late < minutes(5), 0, 1),
+         y5 = ifelse(late < minutes(5), "no", "yes"),
+         tuesWed.binary = ifelse(weekday == "Tuesday"|weekday == "Wednesday", 1, 0),
+         toPenn.binary =  ifelse(to == "New York Penn Station", 1, 0),
+         friWed.binary = ifelse(weekday == "Friday"|weekday == "Wednesday", 1, 0),
+         toSigStop = ifelse(to == "Broadway Fair Lawn"| to == "Mahwah" | to == "Ramsey Main St"| to == "Waldwick", 0, 1),
+         week_numeric = as.numeric(week))
+
+set.seed(2121)
+panelnoGEOMTrain <- filter(panelnoGEOM, week < 9)
+panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
+
+```
+```{r models}
+Model1<- glm(y2_numeric ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        from, 
+                                        train_count,
+                                        onestoplag,
+                                        hour,
+                                        weekday, 
+                                        lag2Hours,
+                                        lag3Hours,
+                                        lag4Hours,
+                                        lag1week,
+                                        lag1day,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        friWed.binary,
+                                        toSigStop,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        sqrtlag4Hours,
+                                        sqrtlag1day,
+                                        sqrtlag2hourstotal_departures,
+                                        sqrtlag1week,
+                                        lag4Hourswind),  
+                        family="binomial" (link="logit"))
+
+model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
+
+Model2<- glm(y2_numeric ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        from, 
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        sqrtlag4Hours,
+                                        sqrtlag1day,
+                                        sqrtlag2hourstotal_departures,
+                                        sqrtlag1week,
+                                        lag4Hourswind),  
+                        family="binomial" (link="logit"))
+
+model2summary.table <- tbl_regression(Model2, exponentiate = TRUE)
+```
 
