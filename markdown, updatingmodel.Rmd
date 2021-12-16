@@ -369,7 +369,7 @@ Model1<- glm(y2_numeric ~ .,
                                         lag4Hourswind),  
                         family="binomial" (link="logit"))
 
-model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
+#model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
 
 Model2<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
@@ -386,6 +386,6 @@ Model2<- glm(y2_numeric ~ .,
                                         lag4Hourswind),  
                         family="binomial" (link="logit"))
 
-model2summary.table <- tbl_regression(Model2, exponentiate = TRUE)
+#model2summary.table <- tbl_regression(Model2, exponentiate = TRUE)
 ```
 
