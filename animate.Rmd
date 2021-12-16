@@ -13,20 +13,20 @@ week1 <- dplyr::filter(panelGEOM, week_numeric ==1)
 
 ride.animation.data <- week1 %>%
     group_by(STATION_ID, intervalhour) %>%
-    mutate(TripsUsuallyLate = case_when(y2_numeric == 0 ~ "on time",
-                             y2_numeric == 1  ~ "late")) %>%
-    mutate(Trips  = fct_relevel(TripsUsuallyLate, "on time","late"))
+    mutate(TripsUsuallyLate = case_when(late <= 45 ~ "on time: departs within 45 seconds of schedule", late <= 90 ~ "a little late: departs between  90 seconds of schedule",
+                             late >= 90  ~ "late: departs more than 90 seconds behind schedule")) %>%
+    mutate(Trips  = fct_relevel(TripsUsuallyLate, "on time: departs within 45 seconds of schedule","a little late: departs between 46 and 90 seconds of schedule","late: departs more than 90 seconds behind schedule"))
 
 rideshare_animation <-
   ggplot() +
     geom_sf(data = ride.animation.data, aes(colour = TripsUsuallyLate)) +
-    scale_colour_manual(values = c("#260a03", "#a81010")) +
+    scale_colour_manual(values = c(palette3)) +
     labs(title = "Rideshare pickups for one day in November 2018",
          subtitle = "Weekday intervals: {current_frame}") +
     transition_manual(intervalhour) +
     mapTheme()
 
-animate(rideshare_animation, duration=5, renderer = gifski_renderer())
+animate(rideshare_animation, duration=25, renderer = gifski_renderer())
 
 
 ## PREPPING DATAFRAMES   
