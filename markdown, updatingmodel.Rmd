@@ -336,7 +336,7 @@ panelnoGEOM <- panelnoGEOM %>%
          week_numeric = as.numeric(week))
 
 set.seed(2121)
-panelnoGEOMTrain <- filter(panelnoGEOM, week < 9)
+panelnoGEOMTrain <- filter(panelnoGEOM, week < 2)
 panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 ```
@@ -369,7 +369,6 @@ Model1<- glm(y2_numeric ~ .,
                                         lag4Hourswind),  
                         family="binomial" (link="logit"))
 
-#model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
 
 Model2<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
@@ -386,6 +385,215 @@ Model2<- glm(y2_numeric ~ .,
                                         lag4Hourswind),  
                         family="binomial" (link="logit"))
 
+#model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
+
 #model2summary.table <- tbl_regression(Model2, exponentiate = TRUE)
+
+#commented these out b/c making the tables melts my computer? 
+```
+```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+#### Cross Validation 
+
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+##### Model 1-
+
+
+Model1.vars <- colnames(panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        from, 
+                                        train_count,
+                                        onestoplag,
+                                        hour,
+                                        weekday, 
+                                        lag2Hours,
+                                        lag3Hours,
+                                        lag4Hours,
+                                        lag1week,
+                                        lag1day,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        friWed.binary,
+                                        toSigStop,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        sqrtlag4Hours,
+                                        sqrtlag1day,
+                                        sqrtlag2hourstotal_departures,
+                                        sqrtlag1week,
+                                        lag4Hourswind))
+
+ModelcvFit1 <- caret::train(y2 ~ .,
+                        data=panelnoGEOMTrain %>% 
+                        na.exclude(  
+                          dplyr::select(all_of(Model1.vars), y2)), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+```
+```{r crossvalidation2}
+Model2.vars <- colnames(panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        from, 
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        sqrtlag4Hours,
+                                        sqrtlag1day,
+                                        sqrtlag2hourstotal_departures,
+                                        sqrtlag1week,
+                                        lag4Hourswind))
+
+ModelcvFit2 <- caret::train(y2 ~ .,
+                        data=panelnoGEOMTrain %>% 
+                        na.exclude(  
+                          dplyr::select(all_of(Model2.vars), y2)), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+```
+```{r goodnessmetrics}
+
+ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(ModelcvFit1$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Model 1 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+ModelcvFit2.plot<- dplyr::select(ModelcvFit2$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(ModelcvFit2$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Model 2 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+plot_grid(ModelcvFit1.plot, ModelcvFit2.plot, nrow=2, ncol=1)
+
 ```
 
+```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+### MODELS 
+#### Setting up Predictions FOR Weather, Stoplag, and Hourlag -----
+
+    ## Model 1
+
+ModelProbs1 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
+
+    ## Model 2
+
+ModelProbs2 <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model2, panelnoGEOMTest, type="response"))
+
+    ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ model1plot<- ggplot(ModelProbs1, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ ModeltestProbs1.thresholds <- 
+  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## 
+
+gladtestProbs1 <- 
+  ModelProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > ### , 1, 0)))
+
+
+Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.7465
+
+
+Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(gladauc1[1], digits=3)) )+plotTheme2()
+
+   ## MODEL 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ model2plot<- ggplot(ModelProbs2, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ ModeltestProbs2.thresholds <- 
+  iterateThresholds(data=ModelProbs2, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+ModelProbs2.thresholds<-ModelProbs2.thresholds%>%arrange(Rate_TP,Rate_TN) ## 
+
+gladtestProbs2 <- 
+  ModelProbs2 %>%
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs2$Probs > , 1, 0)))
+
+
+Modelauc2<-pROC::auc(ModelProbs2$Outcome, ModelProbs2$Probs) #0.7465
+
+
+Modelroc.2<- ggplot(ModelProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model 2", subtitle = paste("AUC:", round(gladauc1[1], digits=3)) )+plotTheme2()
+
+```
+## Visuals --- SOME OLD SOME STILL USEFUL
+
+```{r resultsbar}
+
+
+gladthresh <- gladtestProbs5.thresholds%>%filter(Threshold == .47)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Gladstone Branch") %>%gather(Variable, Value, -line)
+
+bergthresh<- bergtestProbs4.thresholds%>%filter(Threshold == .56)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Bergen Co. Line") %>%gather(Variable, Value, -line)
+
+gladbergthresh<-rbind(gladthresh, bergthresh)
+
+
+resutlsbar <- gladbergthresh%>%
+    ggplot(aes(Variable, Value, fill = line), colour= "white") +
+      geom_bar(aes(fill = line), position = "dodge", stat = "identity") +
+      scale_fill_manual(values = palette2b) +
+      labs(title="Model Results",
+           #subtitle = " ", 
+           x = "Outcome",y = "Rate") +
+      plotTheme2() + theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom") 
+
+resultsbar
+
+
+```
