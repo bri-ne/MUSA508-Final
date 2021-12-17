@@ -25,3 +25,31 @@ body{
   text-decoration: none;
   pointer-events: none;
 }
+.btn {
+  border-width: 0 0px 0px 0px;
+  font-weight: normal;
+  text-transform: ;
+}
+.btn-default {
+  color: #260a03;
+  background-color: #ffffff;
+  border-color: #ffffff;
+}
+.example_b {
+	color: #0c0e1d !important;
+	text-transform: uppercase;
+	text-decoration: none;
+  font-weight: bold;
+	background: #93afdc;
+	padding: 20px;
+	border-radius: 50px;
+	display: inline-block;
+	border: none;
+	transition: all 0.4s ease 0s;
+}
+.example_b:hover {
+	text-shadow: 0px 0px 6px rgba(255, 255, 255, 1);
+	-webkit-box-shadow: 0px 5px 40px -10px rgba(12,14,29,1);
+	-moz-box-shadow: 0px 5px 40px -10px rgba(12,14,29,1);
+	transition: all 0.4s ease 0s;
+}
