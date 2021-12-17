@@ -1,0 +1,2268 @@
+---
+title: "Final Project"
+author: "Cypress Marrs, Briana Cervantes"
+date: "12/3/2021"
+output:
+  html_document:
+    toc: true 
+    toc_float: true 
+    toc_depth: 6
+    theme: yeti
+    highlight: textmate
+    code_folding: "hide"
+    css: style.css
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+![eNJine
+Logo](https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/otherimagesMD/enjine.jpg)
+
+# ENGINEERING A BETTER COMMUTE
+
+If you have ever felt like New Jersey trains needed work, you are not
+wrong. In January 2019, stations across the New Jersey transit system
+experienced the equivalent of 614 days (about 1 year 8 months)' worth of
+delays.
+
+![ALT
+TEXT](https://static01.nyt.com/images/2018/08/09/nyregion/09njtransit1/merlin_141973050_e60da41c-1e46-4a4b-b59e-f23c41f77251-superJumbo.jpg)
+
+But what if you could know your train was running late before it was
+running late?
+
+With eNJine, you can do just that. No more rushing, only to wait. No
+more missing your connection. No more being late. At eNJine, our data
+scientists are dedicated to engineering a better commute for you.
+
+Our beta testing has focused on proving the feasibility of using machine
+learning to improve commuting. Currently, eNJine can predict whether
+trains will be departing within two minutes of their scheduled departure
+times two hours ahead.
+
+![Michael Scott struggles to get on a moving freight
+train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
+
+Our model works because we understand how New Jersey transit works.
+
+Below, you can see how train delays vary on days of the week and at
+certain stops. With this and other insight, we dial into exactly what
+causes New Jersey trains to be late, so you don't have to.
+
+## GOALS FOR CODE AND CODE BELOW------
+
+-   is it late over 2 mins y/n LOGISTiC
+
+model put ins
+
+-   lag time
+
+-   time of day (at least two hours out)
+
+-   line
+
+-   station pickup (diff stations will be treated as a cat variable)
+
+-   weather data
+
+model outputs
+
+-   is the train going to be late over 2 mins. at pickup station? Y/N
+
+lines we'll be working with
+
+Graphics - deliverable
+
+-   Y/N outcomes for any variables
+
+Codewise to do, next steps:
+
+-   ~~choose two lines~~
+
+-   \~merge the weather\~
+
+    -   \~use this as a numeric variable at first\~
+
+-   ~~merge stop location~~
+
+    -   \~each stop as cat variable\~
+
+-   at least get the code logistic regression
+
+-   last step visuals
+
+-   last last step revise, feat engineer
+
+# SETUP -----
+
+```{r initial, include=FALSE, warning=FALSE, message=FALSE}
+# Libraries -----------------
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(sf)
+library(tidycensus)
+library(tidyverse)
+library(tigris)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(caret)
+library(knitr) 
+library(pscl)
+library(plotROC)
+library(gtsummary) #for table cause broom always f's everything up
+library(pROC)
+library(tibble)
+library(cowplot)
+## FOR MAPS ~~
+library(RColorBrewer)
+library(ggmap)  
+library(maps)
+library(mapdata)
+
+
+
+options(tigris_class = "sf")
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+
+palette6 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette5 <- c("#260a03", "#a81010", "#f8cd12", "#f2fdff", "#93afdc", "#0c0e1d" )
+
+palette4 <- c("#a81010", "#f8cd12", "#93afdc", "#0c0e1d" )
+
+palette3 <- c("#a81010", "#f8cd12", "#93afdc")
+
+palette2 <- c("#260a03", "#a81010")
+
+palette2b <- c( "#260a03", "#f8cd12")
+
+plotTheme2 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background =element_blank(), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "#93afdc", fill=NA, size=4),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#93afdc", color = "#93afdc"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#0c0e1d")
+  )
+}
+
+
+plotTheme3 <-function(base_size = 12, title_size = 18) {
+  theme(
+    panel.background=element_rect(fill = "#93afdc", color = "#f2fdff"), 
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size, colour = "#0c0e1d", family="Helvetica", face="bold"), 
+    plot.subtitle = element_text(face="italic", family="Helvetica", colour = "#0c0e1d"),
+    plot.caption = element_text(hjust=0, colour = "#0c0e1d", family="Helvetica"),
+
+    axis.ticks.y = element_line(color = "grey80", size = 0.1),
+    plot.background =element_blank(),
+    
+    panel.grid.major.x   = element_line("grey80", size =0.1 ),
+    panel.grid.major.y   =element_line("grey80", size = 0.05),
+    panel.grid.minor = element_blank(),
+    panel.border =element_blank(),
+    #panel.spacing = unit(c(2,2,2,2), "cm"),
+    strip.background = element_rect(fill = "#f2fdff", color = "#f2fdff"),
+    strip.text = element_text(size=12,color ="#0c0e1d", family="Helvetica"),
+    axis.title = element_text(size=12, color ="#0c0e1d", family="Helvetica",  face="italic"),
+    axis.text = element_text(size=10, color ="#0c0e1d", family="Helvetica",),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    legend.text = element_text(colour = "#0c0e1d", face = "italic", family="Helvetica"),
+    strip.text.x = element_text(size = 14, family="Helvetica", colour = "#f2fdff")
+  )
+}
+
+
+
+mapTheme2<-function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "#0c0e1d", family="Helvetica"),
+    plot.title = element_text(size = title_size,colour = "#0c0e1d", family="Helvetica"),
+    plot.subtitle=element_text(face="italic", family="Helvetica"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "#93afdc", fill=NA, size=2),
+    strip.text.x = element_text(size = 14, color="#0c0e1d", family="Helvetica"),
+    strip.background  = element_rect(fill="#93afdc", color="#93afdc"))
+}
+
+```
+
+## Bringing in the RAW Data ----
+
+```{r datatrains,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+# Data -----------
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_01.csv?token=AVOS24NFX2PEGNUZQUPRNY3BXYPQY")
+feb2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_02.csv?token=AVOS24PUUJDM2PW36N5T6K3BXYPQ4")
+mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_03.csv?token=AVOS24MRII4RKEMYGNWWUSDBXYPQ6")
+weather.Data <- 
+  riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
+```
+
+```{r wrangledate,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+njtransitdf <- rbind(jan2019, feb2019, mar2019)
+
+
+njtransitdf <- njtransitdf %>% 
+  mutate(scheduled_time_dt = as_datetime(scheduled_time),
+         actual_time_dt = as_datetime(actual_time),
+         delay_dt = seconds(as.integer(delay_minutes*60)), 
+         intervalhour = floor_date(scheduled_time_dt, unit= "hour"),
+         week = week(intervalhour)) %>%
+  na.omit(delay_dt)
+
+```
+
+```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
+
+stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+
+#stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+```
+
+## New Approach- Lines Specific Models
+
+```{r template,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+## Filters down to Week 1- 10
+## Train on 8 test on 2 weeks 
+train.template <- 
+  filter(njtransitdf, week %in% c(1: 10))%>%filter(line == "Bergen Co. Line " | line == "Gladstone Branch")
+
+
+
+#### TRYING TO GET A FEAT WHERE IF PREV STOP WAS LATE, NEXT STOP WILL BE LATE ------
+
+## JUST BERGEN, *Not Grouped By Anything* 
+
+berg <- train.template%>%filter(line == "Bergen Co. Line ")
+
+  # grouping by all the things we want to investigate later, so we don't lose detail: 
+  ### specifically adding train_id, so that we can nest in tibble
+bergInterval <- berg%>%group_by(train_id, stop_sequence, from, to, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>% 
+                                                                                mutate(lagHour = dplyr::lag(late,1),
+                                                                                         lag2Hours = dplyr::lag(late,2),
+                                                                                         lag3Hours = dplyr::lag(late,3),
+                                                                                         lag4Hours = dplyr::lag(late,4),
+                                                                                         lag12Hours = dplyr::lag(late,12),
+                                                                                         lag1day = dplyr::lag(late,24),
+                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel    
+
+
+## JUST GLADSTONE, *Not Grouped By Anything* 
+
+glad <- train.template%>%filter(line == "Gladstone Branch")
+
+  # grouping by all the things we want to investigate later, so we don't lose detail: 
+gladInterval <- glad%>%group_by(train_id, stop_sequence, from, to, intervalhour)%>%summarize(late = mean(delay_dt, na.rm=T))%>%arrange(intervalhour)%>%
+                                                                                mutate(lagHour = dplyr::lag(late,1),
+                                                                                         lag2Hours = dplyr::lag(late,2),
+                                                                                         lag3Hours = dplyr::lag(late,3),
+                                                                                         lag4Hours = dplyr::lag(late,4),
+                                                                                         lag12Hours = dplyr::lag(late,12),
+                                                                                         lag1day = dplyr::lag(late,24),
+                                                                                        lag1week = dplyr::lag(late, 168)) ## This is a Study Panel
+
+### MAKING NA 0
+
+gladInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")][is.na(gladInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")])] <- 0 
+
+
+bergInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")][is.na(bergInterval[c("lagHour", "lag2Hours", "lag3Hours", "lag4Hours", "lag12Hours","lag1day", "lag1week")])] <- 0 
+
+
+
+gladInterval <- gladInterval%>%mutate(lateM = late/60,
+                              hour= hour(intervalhour),
+                              daynumeric= wday(intervalhour),
+                              week = week(intervalhour),
+                              weekday = weekdays(intervalhour),
+            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
+
+bergInterval <- bergInterval%>%mutate(lateM = late/60,
+                              hour= hour(intervalhour),
+                              daynumeric= wday(intervalhour),
+                              week = week(intervalhour),
+                              weekday = weekdays(intervalhour),
+            late_catagorical = ifelse(late < minutes(1), "ontime", ifelse(late < minutes(4), "few_minutes", "late")))
+
+
+```
+
+```{r stationsGEOMS, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+#### MAKING A COPY b/c THIS SHIT KEEPS NOT WORKIGN
+
+bergInterval2 <- bergInterval
+gladInterval2 <- gladInterval
+
+
+### THIS can be moved to a more appropriate spot later, but for now: 
+
+  ## First, merge with stop data:
+  
+
+station_id <- unique(stoplocations$STATION_ID)
+
+  ### Getting the names the same 
+      
+      ## GLAD ~~~~
+
+gladInterval2$from<-replace(gladInterval2$from, gladInterval2$from == "Hoboken", "Hoboken Terminal")
+gladInterval2$to<-replace(gladInterval2$to, gladInterval2$to == "Hoboken", "Hoboken Terminal")
+
+gladInterval2$from<-replace(gladInterval2$from, gladInterval2$from == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+gladInterval2$to<-replace(gladInterval2$to, gladInterval2$to == "Secaucus Upper Lvl", "Secaucus Junction Upper Level")
+
+gladstops <- unique(gladInterval2$from)
+length(gladstops)
+
+gladID <- stoplocations%>%
+  filter(STATION_ID %in% gladstops)
+#lenght(gladID)
+
+gladGEOM <- gladInterval%>%merge(gladID, by.x ="from", by.y="STATION_ID") 
+
+      ## BERG ~~~
+
+
+stoplocations <- stoplocations%>%mutate(STATION_ID = ifelse(COUNTY == "Orange, NY" & STATION_ID == "Middletown", "Middletown NY", STATION_ID))
+
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Broadway Fair Lawn", "Broadway")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Hoboken", "Hoboken Terminal")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Radburn Fair Lawn", "Radburn")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Ramsey Main St", "Ramsey")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Ramsey Route 17", "Rte 17 Ramsey")
+bergInterval2$from<-replace(bergInterval2$from, bergInterval2$from == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
+
+
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Broadway Fair Lawn", "Broadway")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Glen Rock Boro Hall", "Glen Rock-Boro Hall")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Hoboken", "Hoboken Terminal")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Radburn Fair Lawn", "Radburn")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Ramsey Main St", "Ramsey")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Ramsey Route 17", "Rte 17 Ramsey")
+bergInterval2$to<-replace(bergInterval2$to, bergInterval2$to == "Secaucus Lower Lvl", "Secaucus Junction Lower Level")
+
+bergstops <- unique(bergInterval2$from)
+
+length(bergstops)
+bergID <- stoplocations%>%
+  filter(STATION_ID %in% bergstops)
+length(bergID)
+
+bergGEOM <- bergInterval%>%merge(bergID, by.x ="from", by.y="STATION_ID")
+bergGEOMformap <-bergGEOM%>%st_as_sf( crs =3424, agr = "constant")
+gladGEOMformap <-gladGEOM%>%st_as_sf( crs =3424, agr = "constant")
+
+```
+
+## Getting Stop Lag
+
+No weather yet.
+
+Steps - Just doing this for one train first? - get only regression
+variables - make stop lag - divide train and test - run regression
+
+### Stop Lag & Prepping Models:
+
+```{r stoplag,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+## Remaking Model 3 with STOP LAG: Calling it 3b: GLADSTONE LINE PROTOTYPE
+
+### Adding our Y variable -----
+
+    ##GLAD
+gladModel<- gladInterval%>%mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
+                                  y2 = ifelse(late < minutes(2), "no", "yes"),
+                                  y5_numeric = ifelse(late < minutes(5), 0, 1),
+                                 y5 = ifelse(late < minutes(5), "no", "yes"),
+                                 tuesWed.binary = ifelse(weekday == "Tuesday"|weekday == "Wednesday", 1, 0),
+                                  toPenn.binary =  ifelse(to == "New York Penn Station", 1, 0))
+
+    ##BERG
+bergModel<- bergInterval%>%mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
+                                  y2 = ifelse(late < minutes(2), "no", "yes"),
+                                  y5_numeric = ifelse(late < minutes(5), 0, 1),
+                                 y5 = ifelse(late < minutes(5), "no", "yes"),
+                                 friWed.binary = ifelse(weekday == "Friday"|weekday == "Wednesday", 1, 0),
+                                  toPenn.binary =  ifelse(to == "New York Penn Station", 1, 0),
+                                 toSigStop = ifelse(to == "Broadway Fair Lawn"| to == "Mahwah" | to == "Ramsey Main St"| to == "Waldwick", 0, 1))
+
+
+
+### Subsetting the DF -----
+
+
+
+    ## GLAD
+gladModel<-gladModel%>%dplyr::select(
+                                        train_id,
+                                        stop_sequence,
+                                        from, 
+                                        to,
+                                        late,
+                                        week,
+                                        weekday, 
+                                        hour,
+                                        lagHour, 
+                                        lag2Hours, 
+                                        lag3Hours, 
+                                        y2, 
+                                        intervalhour,
+                                        y2_numeric,
+                                        tuesWed.binary,
+                                        toPenn.binary)
+
+    ## BERG
+
+bergModel<-bergModel%>%dplyr::select(
+                                        train_id,
+                                        stop_sequence,
+                                        from, 
+                                        to,
+                                        late,
+                                        week,
+                                        weekday, 
+                                        hour,
+                                        lagHour, 
+                                        lag2Hours, 
+                                        lag3Hours, 
+                                        y2, 
+                                        intervalhour,
+                                        y2_numeric,
+                                        friWed.binary,
+                                        toSigStop)
+
+
+
+
+## THIS WORKS NO TIBBLE NEEDED::::STOP LAG:::::: ----
+
+    ## GLAD
+
+gladModel.good <-gladModel%>%group_by(train_id)%>%arrange(stop_sequence)%>%mutate(onestoplag = dplyr::lag(late),
+                                                                          twostoplag = dplyr::lag(late,2))%>%ungroup()
+
+gladModel.good[c("onestoplag","twostoplag")][is.na(gladModel.good[c("onestoplag","twostoplag")])] <- 0 
+
+
+
+    ## BERG
+
+bergModel.good <-bergModel%>%group_by(train_id)%>%arrange(stop_sequence)%>%mutate(onestoplag = dplyr::lag(late), twostoplag = dplyr::lag(late))%>%ungroup()
+
+bergModel.good[c("onestoplag","twostoplag")][is.na(bergModel.good[c("onestoplag","twostoplag")])] <- 0 
+
+### Splitting train and test THIS IS NO WEATHER----
+
+  ## GLAD
+  
+gladModel.good <- mutate(gladModel.good, week_numeric = as.numeric(week))
+
+set.seed(2121)
+gladTrain <- filter(gladModel.good, week < 9)
+gladTest <- filter(gladModel.good, week >= 9)
+
+
+
+  ## BERG
+
+
+bergModel.good <- mutate(bergModel.good, week_numeric = as.numeric(week))
+
+set.seed(2121)
+bergTrain <- filter(bergModel.good, week < 9)
+
+bergTest <- filter(bergModel.good, week >= 9)
+
+
+```
+
+### Getting Weather Data
+
+#### Weather Data
+
+```{r dataweather,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+# Data -----------
+weather.Panel <-  
+  weather.Data %>%
+    mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
+    replace(is.na(.), 0) %>%
+    mutate(intervalhour = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(dotw = wday(intervalhour, label=TRUE)) %>%
+    group_by(intervalhour) %>%
+    summarize(Temperature = max(tmpf),
+              Percipitation = sum(p01i),
+              Wind_Speed = max(sknt)) %>%
+    mutate(Temperature = ifelse(Temperature == 0, 42, Temperature)) 
+
+#Bring in other data sources and join in legible ways that will make data useable 
+
+
+```
+
+```{r weatherMERGE,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+## MERGING
+
+    ## GLAD
+
+glad.weather.panel <- merge(x= gladModel.good, y= weather.Panel, by= 'intervalhour', all.x= T)
+
+glad.weather.panel <- 
+glad.weather.panel%>% 
+      group_by(intervalhour) %>% 
+    arrange(intervalhour) %>% 
+
+    mutate(
+            lag1Hourwind = dplyr::lag(Wind_Speed,1),
+           lag2Hourswind = dplyr::lag(Wind_Speed,2),  ##taking note from the pres today about windspeed 
+           lag3Hourswind = dplyr::lag(Wind_Speed,3),
+           lag4Hourswind = dplyr::lag(Wind_Speed,4),
+           lag12Hourswind = dplyr::lag(Wind_Speed,12),
+           lag1daywind = dplyr::lag(Wind_Speed,24))%>%mutate(
+           SQRTlag1Hourwind = sqrt(lag1Hourwind),
+           SQRTlag2Hourswind = sqrt(lag2Hourswind),  ##taking note from the pres today about windspeed 
+           SQRTlag3Hourswind = sqrt(lag3Hourswind),
+           SQRTlag4Hourswind = sqrt(lag4Hourswind),
+           SQRTlag12Hourswind = sqrt(lag12Hourswind),
+           SQRTlag1daywind = sqrt(lag1daywind)) %>% 
+   ungroup()
+
+
+    ## BERG
+
+berg.weather.panel <- merge(x= bergModel.good, y= weather.Panel, by= 'intervalhour', all.x= T)
+
+berg.weather.panel <- 
+berg.weather.panel%>% 
+      group_by(intervalhour) %>% 
+    arrange(intervalhour) %>% 
+
+    mutate(lag1Hourwind = dplyr::lag(Wind_Speed,1),
+           lag2Hourswind = dplyr::lag(Wind_Speed,2),  ##taking note from the pres today about windspeed 
+           lag3Hourswind = dplyr::lag(Wind_Speed,3),
+           lag4Hourswind = dplyr::lag(Wind_Speed,4),
+           lag12Hourswind = dplyr::lag(Wind_Speed,12),
+           lag1daywind = dplyr::lag(Wind_Speed,24)) %>%mutate(
+           SQRTlag1Hourwind = sqrt(lag1Hourwind),
+           SQRTlag2Hourswind = sqrt(lag2Hourswind),  ##taking note from the pres today about windspeed 
+           SQRTlag3Hourswind = sqrt(lag3Hourswind),
+           SQRTlag4Hourswind = sqrt(lag4Hourswind),
+           SQRTlag12Hourswind = sqrt(lag12Hourswind),
+           SQRTlag1daywind = sqrt(lag1daywind))%>% 
+   ungroup()
+
+
+
+### Making all new NAs ZERO ~~~~
+
+glad.weather.panel[c("lag1Hourwind",  "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind", "SQRTlag1Hourwind",  "SQRTlag2Hourswind", "SQRTlag3Hourswind", "SQRTlag4Hourswind", "SQRTlag12Hourswind", "SQRTlag1daywind")][is.na(glad.weather.panel[c( "lag1Hourwind", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind", "SQRTlag1Hourwind",  "SQRTlag2Hourswind", "SQRTlag3Hourswind", "SQRTlag4Hourswind", "SQRTlag12Hourswind", "SQRTlag1daywind")])] <- 0 
+
+berg.weather.panel[c("lag1Hourwind",  "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind", "SQRTlag1Hourwind",  "SQRTlag2Hourswind", "SQRTlag3Hourswind", "SQRTlag4Hourswind", "SQRTlag12Hourswind", "SQRTlag1daywind")][is.na(berg.weather.panel[c( "lag1Hourwind", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag1daywind", "SQRTlag1Hourwind",  "SQRTlag2Hourswind", "SQRTlag3Hourswind", "SQRTlag4Hourswind", "SQRTlag12Hourswind", "SQRTlag1daywind")])] <- 0 
+
+
+```
+
+## Running Models
+
+-   Model 1: Weather, Stoplag, Hourlag
+-   Model 2: Weather and Stoplag
+-   Model 3: Weather and Hourlag
+-   Model 4: Stoplag and Houralg
+-   Model 5: SqrootWeather, Stoplag and Houralg
+
+```{r MODELs,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+## Gotta split again: 
+
+### Splitting train and test ----
+
+
+    ## GLAD
+
+set.seed(2121)
+gladTrainW <- filter(glad.weather.panel, week < 9)
+gladTestW <- filter(glad.weather.panel, week >= 9)
+
+    ## BERG
+
+set.seed(2121)
+bergTrainW <- filter(berg.weather.panel, week < 9)
+bergTestW <- filter(berg.weather.panel, week >= 9)
+
+```
+
+```{r corrplots}
+library(ggcorrplot)
+
+numericVars <- 
+  select_if(berg.weather.panel, is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation across numeric variables") 
+
+```
+
+```{r runningthemodel}
+
+
+#### Running the Model
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+        ## GLAD MODEL 1 ------------------        
+
+
+gladModel1<- glm(y2_numeric ~ .,
+                        data=glad.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind),  
+                        family="binomial" (link="logit"))
+
+
+
+gladsummary1.table <- tbl_regression(gladModel1, exponentiate = TRUE)
+
+        ## GLAD MODEL 2 ------------------        
+
+
+gladModel2<- glm(y2_numeric ~ .,
+                        data=glad.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind),  
+                        family="binomial" (link="logit"))
+
+
+
+gladsummary2.table <- tbl_regression(gladModel2, exponentiate = TRUE)
+
+
+
+        ## GLAD MODEL 3 ------------------        
+
+
+gladModel3<- glm(y2_numeric ~ .,
+                        data=glad.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind),  
+                        family="binomial" (link="logit"))
+
+
+
+gladsummary3.table <- tbl_regression(gladModel3, exponentiate = TRUE)
+
+
+
+
+
+        ## GLAD MODEL 4 ------------------        
+
+
+gladModel4<- glm(y2_numeric ~ .,
+                        data=glad.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary),  
+                        family="binomial" (link="logit"))
+
+
+
+gladsummary4.table <- tbl_regression(gladModel4, exponentiate = TRUE)
+
+
+
+
+
+        ## GLAD MODEL 5 ------------------        
+
+
+gladModel5<- glm(y2_numeric ~ .,
+                        data=glad.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary,
+                                        SQRTlag1daywind,
+                                        tuesWed.binary),  
+                        family="binomial" (link="logit"))
+
+
+
+gladsummary5.table <- tbl_regression(gladModel5, exponentiate = TRUE)
+   
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+        ## BERG MODEL 1 ------------------
+
+
+bergModel1<- glm(y2_numeric ~ .,
+                        data=berg.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary, 
+                                        Wind_Speed),  
+                        family="binomial" (link="logit"))
+
+
+
+bergsummary1.table <- tbl_regression(bergModel1, exponentiate = TRUE)
+
+
+
+        ## BERG MODEL 2 ------------------
+
+
+bergModel2<- glm(y2_numeric ~ .,
+                        data=berg.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        friWed.binary, 
+                                        Wind_Speed),  
+                        family="binomial" (link="logit"))
+
+
+
+bergsummary22.table <- tbl_regression(bergModel2, exponentiate = TRUE)
+
+
+        ## BERG MODEL 3 ------------------
+
+
+bergModel3<- glm(y2_numeric ~ .,
+                        data=berg.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary, 
+                                        Wind_Speed),  
+                        family="binomial" (link="logit"))
+
+
+
+bergsummary3.table <- tbl_regression(bergModel3, exponentiate = TRUE)
+
+
+
+        ## BERG MODEL 4 ------------------
+
+
+bergModel4<- glm(y2_numeric ~ .,
+                        data=berg.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        #stop_sequence, ##<-- it's the same w/o these vars
+                                        onestoplag,
+                                        #hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary),  
+                        family="binomial" (link="logit"))
+
+
+
+bergsummary4.table <- tbl_regression(bergModel4, exponentiate = TRUE)
+
+
+
+        ## BERG MODEL 5 ------------------
+
+
+bergModel5<- glm(y2_numeric ~ .,
+                        data=berg.weather.panel %>% 
+                          dplyr::select(y2_numeric,
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        SQRTlag1Hourwind,
+                                        SQRTlag1daywind,
+                                        friWed.binary),  
+                        family="binomial" (link="logit"))
+
+
+
+bergsummary5.table <- tbl_regression(bergModel5, exponentiate = TRUE)
+
+
+```
+
+## Cross Validation
+
+```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+#### Cross Validation 
+
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+##### GLAD -----
+
+      #### GLAD 1 ----
+
+
+gladModel1.vars <- colnames(gladTrainW %>%dplyr::select(
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind))
+
+gladcvFit1 <- caret::train(y2 ~ .,
+                        data=gladTrainW %>%dplyr::select(all_of(gladModel1.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+gladcvFit1.plot<- dplyr::select(gladcvFit1$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(gladcvFit1$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Glad: MODEL 1 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+      #### GLAD 2 ----
+
+
+gladModel2.vars <- colnames(gladTrainW %>%dplyr::select(
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind))
+
+gladcvFit2 <- caret::train(y2 ~ .,
+                        data=gladTrainW %>%dplyr::select(all_of(gladModel2.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+gladcvFit2.plot<- dplyr::select(gladcvFit2$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(gladcvFit2$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Glad: MODEL 2 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+      #### GLAD 3 ----
+
+
+gladModel3.vars <- colnames(gladTrainW %>%dplyr::select(stop_sequence,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary, 
+                                        Wind_Speed,
+                                        lag4Hourswind,   ## these are the only winds that were sig
+                                        lag1daywind))
+
+gladcvFit3 <- caret::train(y2 ~ .,
+                        data=gladTrainW %>%dplyr::select(all_of(gladModel3.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+gladcvFit3.plot<- dplyr::select(gladcvFit3$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(gladcvFit3$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Glad: MODEL 3 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+
+      #### GLAD 4 ----
+
+
+gladModel4.vars <- colnames(gladTrainW %>%dplyr::select(stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary, 
+                                        tuesWed.binary))
+
+gladcvFit4<- caret::train(y2 ~ .,
+                        data=gladTrainW %>%dplyr::select(all_of(gladModel4.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+gladcvFit4.plot<- dplyr::select(gladcvFit4$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(gladcvFit4$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Glad: MODEL 4 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+      #### GLAD 5 ----
+
+
+gladModel5.vars <- colnames(gladTrainW %>%dplyr::select(stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        toPenn.binary,
+                                        SQRTlag1daywind,
+                                        tuesWed.binary))
+
+gladcvFit5 <- caret::train(y2 ~ .,
+                        data=gladTrainW %>%dplyr::select(all_of(gladModel5.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+gladcvFit5.plot<- dplyr::select(gladcvFit5$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(gladcvFit5$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="Glad: MODEL 5 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### BERG -----
+
+      #### BERG 1 ----
+
+
+bergModel1.vars <- colnames(bergTrainW %>%dplyr::select(stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary, 
+                                        Wind_Speed))
+
+bergcvFit1 <- caret::train(y2 ~ .,
+                        data=bergTrainW %>%dplyr::select(all_of(bergModel1.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+bergcvFit1.plot<- dplyr::select(bergcvFit1$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(bergcvFit1$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="BERG: MODEL 1 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+      #### BERG 2 ----
+
+
+bergModel2.vars <- colnames(bergTrainW %>%dplyr::select(
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        friWed.binary, 
+                                        Wind_Speed))
+
+bergcvFit2 <- caret::train(y2 ~ .,
+                        data=bergTrainW %>%dplyr::select(all_of(bergModel2.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+bergcvFit2.plot<- dplyr::select(bergcvFit2$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(bergcvFit2$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="BERG: MODEL 2 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+      #### BERG 3 ----
+
+
+bergModel3.vars <- colnames(bergTrainW %>%dplyr::select(
+                                        stop_sequence,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary, 
+                                        Wind_Speed))
+
+bergcvFit3 <- caret::train(y2 ~ .,
+                        data=bergTrainW %>%dplyr::select(all_of(bergModel3.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+bergcvFit3.plot<- dplyr::select(bergcvFit3$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(bergcvFit3$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="BERG: MODEL 3 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+      #### BERG 4 ----
+
+
+bergModel4.vars <- colnames(bergTrainW %>%dplyr::select(
+                                        #stop_sequence, ##<-- it's the same w/o these vars
+                                        onestoplag,
+                                        #hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        friWed.binary))
+
+bergcvFit4 <- caret::train(y2 ~ .,
+                        data=bergTrainW %>%dplyr::select(all_of(bergModel4.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+bergcvFit4.plot<- dplyr::select(bergcvFit4$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(bergcvFit4$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="BERG: MODEL 4 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+
+
+      #### BERG 5 ----
+
+
+bergModel5.vars <- colnames(bergTrainW %>%dplyr::select(
+                                        stop_sequence, 
+                                        onestoplag,
+                                        hour, 
+                                        toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours,
+                                        SQRTlag1Hourwind,
+                                        SQRTlag1daywind,
+                                        friWed.binary))
+
+bergcvFit5 <- caret::train(y2 ~ .,
+                        data=bergTrainW %>%dplyr::select(all_of(bergModel5.vars), y2), ### in the book, they cv on all the data but i'm pretty sure it should just be train
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+bergcvFit5.plot<- dplyr::select(bergcvFit5$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(bergcvFit5$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#93afdc") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#a81010", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="BERG: MODEL 5 Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines",
+       caption= " ") +
+  plotTheme2()
+
+
+
+
+
+
+```
+
+### CV Plots
+
+```{r cvplots}
+
+
+plot_grid(gladcvFit1.plot, gladcvFit2.plot, gladcvFit3.plot, gladcvFit4.plot, gladcvFit5.plot, nrow=3, ncol=2)
+plot_grid(bergcvFit1.plot, bergcvFit2.plot, bergcvFit3.plot, bergcvFit4.plot, bergcvFit5.plot, nrow=3, ncol=2)
+
+```
+
+
+## Predictions
+
+```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+
+### MODELS 1
+#### Setting up Predictions FOR Weather, Stoplag, and Hourlag -----
+
+    ## GLAD
+
+gladtestProbs1 <- data.frame(Outcome = as.factor(gladTestW$y2_numeric),
+                         Probs = predict(gladModel1, gladTestW, type="response"))
+
+    ## BERG
+
+bergtestProbs1 <- data.frame(Outcome = as.factor(bergTestW$y2_numeric),
+                         Probs = predict(bergModel1, bergTestW, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn -----
+
+
+
+
+## TEST PROBS PLOT **MODEL 3cW -- to figure out what threh**
+
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ glad1<- ggplot(gladtestProbs1, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "GladStone Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ gladtestProbs1.thresholds <- 
+  iterateThresholds(data=gladtestProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+gladtestProbs1.thresholds<-gladtestProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.48 identified
+
+gladtestProbs1 <- 
+  gladtestProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(gladtestProbs1$Probs > 0.48 , 1, 0)))
+
+
+gladauc1<-pROC::auc(gladtestProbs1$Outcome, gladtestProbs1$Probs) #0.7465
+
+
+gladroc.1<- ggplot(gladtestProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - GLAD Model 1", subtitle = paste("AUC:", round(gladauc1[1], digits=3)) )+plotTheme2()
+
+
+
+
+
+
+
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ berg1<- ggplot(bergtestProbs1, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "BERG Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ bergtestProbs1.thresholds <- 
+  iterateThresholds(data=bergtestProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+bergtestProbs1.thresholds<-bergtestProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.55 identified
+
+bergtestProbs1 <- 
+  bergtestProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(bergtestProbs1$Probs > 0.55 , 1, 0)))
+
+
+
+
+
+bergauc1 <- pROC::auc(bergtestProbs1$Outcome, bergtestProbs1$Probs) #0.7437
+
+
+bergroc.1<- ggplot(bergtestProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - BERG Model 1", subtitle = paste("AUC:", round(bergauc1[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+
+
+#plot_grid(glad1, berg1, nrow = 2)
+
+
+
+
+
+```
+
+```{r PREDICTIONS2, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+#### MODELS 2
+
+#### Setting up Predictions FOR JUST Weather and Stoplag-----
+
+    ## GLAD
+
+gladtestProbs2 <- data.frame(Outcome = as.factor(gladTestW$y2_numeric),
+                         Probs = predict(gladModel2, gladTestW, type="response"))
+
+    ## BERG
+
+bergtestProbs2 <- data.frame(Outcome = as.factor(bergTestW$y2_numeric),
+                         Probs = predict(bergModel2, bergTestW, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn -----
+
+
+
+
+## TEST PROBS PLOT **MODEL 3cW -- to figure out what threh**
+
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ glad2<- ggplot(gladtestProbs2, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "GladStone Model 2: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " na") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ gladtestProbs2.thresholds <- 
+  iterateThresholds(data=gladtestProbs2, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+gladtestProbs2.thresholds<-gladtestProbs2.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.50 identified
+
+
+
+gladtestProbs2 <- 
+  gladtestProbs2 %>%
+  mutate(predOutcome  = as.factor(ifelse(gladtestProbs2$Probs > 0.50 , 1, 0)))
+
+
+
+
+
+
+gladauc2<-pROC::auc(gladtestProbs2$Outcome, gladtestProbs2$Probs) #0.7465
+
+
+gladroc.2<- ggplot(gladtestProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model GLAD 2", subtitle = paste("AUC:", round(gladauc2[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ berg2<- ggplot(bergtestProbs2, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "BERG Model 2: Distribution of Predicted \nProbabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ bergtestProbs2.thresholds <- 
+  iterateThresholds(data=bergtestProbs2, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+bergtestProbs2.thresholds<-bergtestProbs2.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.56 identified
+
+
+
+bergtestProbs2<- 
+  bergtestProbs2%>%
+  mutate(predOutcome  = as.factor(ifelse(bergtestProbs2$Probs > 0.56 , 1, 0)))
+
+bergauc2<-pROC::auc(bergtestProbs2$Outcome, bergtestProbs2$Probs) #0.7437
+
+
+bergroc.2<- ggplot(bergtestProbs2, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - BERG Model 2", subtitle = paste("AUC:", round(bergauc2[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+#plot_grid(glad2, berg2, nrow = 2)
+
+
+
+
+
+ berg2
+
+
+
+
+
+
+```
+
+```{r PREDICTIONS3, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+### MODELS 3
+
+#### Setting up Predictions FOR JUST Weather and Stoplag-----
+
+    ## GLAD
+
+gladtestProbs3 <- data.frame(Outcome = as.factor(gladTestW$y2_numeric),
+                         Probs = predict(gladModel3, gladTestW, type="response"))
+
+    ## BERG
+
+bergtestProbs3 <- data.frame(Outcome = as.factor(bergTestW$y2_numeric),
+                         Probs = predict(bergModel3, bergTestW, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn -----
+
+
+
+
+## TEST PROBS PLOT **MODEL 3cW -- to figure out what threh**
+
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ glad3<- ggplot(gladtestProbs3, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "GladStone Model 3: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ gladtestProbs3.thresholds <- 
+  iterateThresholds(data=gladtestProbs3, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+gladtestProbs3.thresholds<-gladtestProbs3.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.49 identified
+
+
+gladtestProbs3 <- 
+  gladtestProbs3 %>%
+  mutate(predOutcome  = as.factor(ifelse(gladtestProbs3$Probs > 0.49 , 1, 0)))
+
+
+
+
+
+
+gladauc3<-pROC::auc(gladtestProbs3$Outcome, gladtestProbs3$Probs) #0.7465
+
+
+
+
+gladroc.3<- ggplot(gladtestProbs3, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - GLAD Model 3", subtitle = paste("AUC:", round(gladauc3[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ berg3<- ggplot(bergtestProbs3, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "BERG Model 3: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= " ") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ bergtestProbs3.thresholds <- 
+  iterateThresholds(data=bergtestProbs3, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+bergtestProbs3.thresholds<-bergtestProbs3.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.54 identified
+
+
+
+
+bergtestProbs3 <- 
+  bergtestProbs3 %>%
+  mutate(predOutcome  = as.factor(ifelse(bergtestProbs3$Probs > 0.54 , 1, 0)))
+
+
+
+
+
+bergauc3<-pROC::auc(bergtestProbs3$Outcome, bergtestProbs3$Probs) #0.7437
+
+
+
+bergroc.3<- ggplot(bergtestProbs3, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - BERG Model 3", subtitle = paste("AUC:", round(bergauc3[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+
+#plot_grid(glad3, berg3, nrow = 2)
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+```{r PREDICTIONS4, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+##MODELS 4
+
+
+#### Setting up Predictions FOR JUST Weather and Stoplag-----
+
+    ## GLAD
+
+gladtestProbs4<- data.frame(Outcome = as.factor(gladTestW$y2_numeric),
+                         Probs = predict(gladModel4, gladTestW, type="response"))
+
+    ## BERG
+
+bergtestProbs4 <- data.frame(Outcome = as.factor(bergTestW$y2_numeric),
+                         Probs = predict(bergModel4, bergTestW, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn -----
+
+
+
+
+## TEST PROBS PLOT **MODEL 3cW -- to figure out what threh**
+
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ glad4 <- ggplot(gladtestProbs4, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "GladStone Model 4: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "WEATHER has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ gladtestProbs4.thresholds <- 
+  iterateThresholds(data=gladtestProbs4, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+gladtestProbs4.thresholds<-gladtestProbs4.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.48 identified
+
+
+
+gladtestProbs4 <- 
+  gladtestProbs4 %>%
+  mutate(predOutcome  = as.factor(ifelse(gladtestProbs4$Probs > 0.48 , 1, 0)))
+
+
+
+
+
+
+
+gladauc4<- pROC::auc(gladtestProbs4$Outcome, gladtestProbs4$Probs) #0.7469
+#0.7469
+
+
+gladroc.4<- ggplot(gladtestProbs4, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - GLAD Model 4", subtitle = paste("AUC:", round(gladauc4[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ berg4<- ggplot(bergtestProbs4, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "BERG Model 4: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "WEATHER has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ bergtestProbs4.thresholds <- 
+  iterateThresholds(data=bergtestProbs4, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+bergtestProbs4.thresholds<-bergtestProbs4.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.56 identified
+
+
+bergtestProbs4 <- 
+  bergtestProbs4 %>%
+  mutate(predOutcome  = as.factor(ifelse(bergtestProbs4$Probs > 0.56 , 1, 0)))
+
+
+
+
+
+
+
+
+bergauc4<-pROC::auc(bergtestProbs4$Outcome, bergtestProbs4$Probs) #0.7437
+
+
+
+bergroc.4<- ggplot(bergtestProbs4, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - BERG Model 4", subtitle = paste("AUC:", round(bergauc4[1], digits=3)))+plotTheme2()
+
+
+
+
+
+#plot_grid(glad4, berg4, nrow = 2)
+
+
+
+```
+
+```{r PREDICTIONS5, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+##MODELS 4
+
+
+#### Setting up Predictions FOR JUST Weather and Stoplag-----
+
+    ## GLAD
+
+gladtestProbs5<- data.frame(Outcome = as.factor(gladTestW$y2_numeric),
+                         Probs = predict(gladModel5, gladTestW, type="response"))
+
+    ## BERG
+
+bergtestProbs5 <- data.frame(Outcome = as.factor(bergTestW$y2_numeric),
+                         Probs = predict(bergModel5, bergTestW, type="response"))
+
+
+
+#### FIGURE OUT WHAT THRESH with plot and iterate fn -----
+
+
+
+
+## TEST PROBS PLOT **MODEL 3cW -- to figure out what threh**
+
+
+    ## GLAD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ glad5 <- ggplot(gladtestProbs5, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "GladStone Model 4: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "WEATHER has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ gladtestProbs5.thresholds <- 
+  iterateThresholds(data=gladtestProbs5, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+gladtestProbs5.thresholds<-gladtestProbs5.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.47 identified
+
+
+
+gladtestProbs5 <- 
+  gladtestProbs5 %>%
+  mutate(predOutcome  = as.factor(ifelse(gladtestProbs5$Probs > 0.47 , 1, 0)))
+
+
+
+
+
+
+
+gladauc5<- pROC::auc(gladtestProbs5$Outcome, gladtestProbs5$Probs) 
+
+
+
+gladroc.5<- ggplot(gladtestProbs5, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - GLAD Model 4", subtitle = paste("AUC:", round(gladauc5[1], digits=3)))+plotTheme2()
+
+
+
+
+
+
+    ## BERG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+ berg5<- ggplot(bergtestProbs5, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Late Over 2 Mins", y = "Density of probabilities",
+       title = "BERG Model 4: Distribution of Predicted Probabilities by Actual Outcome",
+       caption= "WEATHER has stop lags") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")+plotTheme2()
+
+ 
+ bergtestProbs5.thresholds <- 
+  iterateThresholds(data=bergtestProbs5, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+bergtestProbs5.thresholds<-bergtestProbs5.thresholds%>%arrange(Rate_TP,Rate_TN) ## 0.56 identified
+
+
+bergtestProbs5 <- 
+  bergtestProbs5 %>%
+  mutate(predOutcome  = as.factor(ifelse(bergtestProbs5$Probs > 0.56 , 1, 0)))
+
+
+
+
+
+
+
+
+bergauc5<-pROC::auc(bergtestProbs5$Outcome, bergtestProbs5$Probs) #
+
+
+
+bergroc.5<- ggplot(bergtestProbs5, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - BERG Model 4", subtitle = paste("AUC:", round(bergauc5[1], digits=3)))+plotTheme2()
+
+
+
+
+
+#plot_grid(glad5, berg5, nrow = 2)
+
+
+
+```
+
+```{r allPredPlot}
+
+
+plot_grid( glad1, berg1, glad2, berg2, glad3, berg3, glad4, berg4, glad5, berg5, nrow = 5)
+plot_grid( gladroc.1, bergroc.1, gladroc.2, bergroc.2, gladroc.3, bergroc.3, gladroc.4, bergroc.4, gladroc.5, bergroc.5,nrow = 5)
+
+```
+
+## Visuals --- SOME OLD SOME STILL USEFUL
+
+```{r resultsbar}
+
+
+
+
+gladthresh <- gladtestProbs5.thresholds%>%filter(Threshold == .47)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Gladstone Branch") %>%gather(Variable, Value, -line)
+
+bergthresh<- bergtestProbs4.thresholds%>%filter(Threshold == .56)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Bergen Co. Line") %>%gather(Variable, Value, -line)
+
+gladbergthresh<-rbind(gladthresh, bergthresh)
+
+
+resutlsbar <- gladbergthresh%>%
+    ggplot(aes(Variable, Value, fill = line), colour= "white") +
+      geom_bar(aes(fill = line), position = "dodge", stat = "identity") +
+      scale_fill_manual(values = palette2b) +
+      labs(title="Model Results",
+           #subtitle = " ", 
+           x = "Outcome",y = "Rate") +
+      plotTheme2() + theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom") 
+
+resultsbar
+
+```
+
+```{r MAPs}
+### MAPS ------
+
+
+
+## PREPPING DATAFRAMES   
+    
+    ## GLAD 8am and 12pm~~~~
+
+
+mapglad8<- gladGEOM%>%dplyr::filter(hour == 13 & week ==2)%>% mutate(weekday = fct_reorder(weekday,  daynumeric))%>%st_transform(4326)
+mapglad12<- gladGEOM%>%dplyr::filter(hour == 5 & week ==2)%>% mutate(weekday = fct_reorder(weekday, daynumeric))%>%st_transform(4326)
+
+
+rbg <- st_coordinates(mapglad8)
+rbg2 <- st_coordinates(mapglad12)
+
+mapglad8<- mapglad8%>%mutate(lat= rbg[, 2], long =  rbg[, 1])
+mapglad12<- mapglad12%>%mutate(lat= rbg2[, 2], long =  rbg2[, 1])
+
+
+     ## BERG  8am and 12pm~~~~
+
+
+mapberg8<- bergGEOM%>%dplyr::filter(hour == 13 & week ==2)%>% mutate(weekday = fct_reorder(weekday, daynumeric))%>%st_transform(4326)
+
+mapberg12<- bergGEOM%>%dplyr::filter(hour == 5 & week ==2)%>% mutate(weekday = fct_reorder(weekday, daynumeric))%>%st_transform(4326)
+
+
+rb <- st_coordinates(mapberg8)
+rb2 <- st_coordinates(mapberg12)
+
+mapberg8<- mapberg8%>%mutate(lat= rb[, 2], long =  rb[, 1])
+mapberg12<- mapberg12%>%mutate(lat= rb2[, 2], long =  rb2[, 1])
+
+
+
+## TRYING TO GET A GODDAMN BASE MAP THAT DOESN"T LOOK LIKE SHITE
+
+library(ggmap)
+#install.packages("rstudioapi")
+library(rstudioapi)
+ggmap::register_google(key = "AIzaSyBCWh3md7doMjJzQQJZSfvyTFnbknsm6Fs") ##<-- mykeys 
+#devtools::install_github("mikey-harper/ggmapstyles")
+library(ggmapstyles)
+
+
+nameless<- "https://snazzymaps.com/style/24115/nameless"     ##<---- these are all the diff base maps I've tried 
+grays<- "https://snazzymaps.com/style/55/subtle-greyscale-map"
+subtle<- "https://snazzymaps.com/style/19/subtle"
+ultra<-"https://snazzymaps.com/style/396899/ultrasimple"
+simple<- "https://snazzymaps.com/style/83357/simple"
+bg<- "https://snazzymaps.com/style/121205/blank-bluegreyish"
+vector<- "https://snazzymaps.com/style/38830/vector"
+min<- "https://snazzymaps.com/style/76687/minimal"
+blank<- "https://snazzymaps.com/style/220191/blank-background"
+assass<- "https://snazzymaps.com/style/72543/assassins-creed-iv"
+vint<-"https://snazzymaps.com/style/14/vintage"
+old<-"https://snazzymaps.com/style/46616/old-style-minimal-with-highways"
+
+spotB = 'Paterson, New Jersey'
+mapB <- get_snazzymap(center = 'Paterson, New Jersey', 
+                     mapRef = old,   ###   <----------------------pick one, save it to a var, and put that var here
+                     zoom=9)    ### <------- if u make this numb. smaller, we will  lose data points for th bergmap
+
+mapG <- get_snazzymap(center = 'South Orange, New Jersey', 
+                     mapRef = old,   ###   <----------------------pick one, save it to a var, and put that var here
+                     zoom=10)
+
+
+
+
+#ggmap(map) ### <---- preveiew it with this 
+
+
+pBERG <- ggmap(mapB, darken = 0.6) ## <---- then save this map to a var 
+
+pGLAD<- ggmap(mapG, darken = 0.6)
+
+p2 <- get_map(spot, zoom=10, maptype = "toner-background", style = 'style=feature:landscape.natural.terrain|visibility:simplified') ##<---- other route that's not really working 
+
+p3<-ggmap(p2)
+
+
+
+### ACTUALLY MAPPING ------
+
+
+trialmap<-p + geom_point(data = mapberg, aes(x = long, y = lat))
+
+  ###  BERG 8am ~~
+
+bergMAP8am<-pBERG + geom_point(data = mapberg8,
+          shape=21, color= 'grey10', alpha = 0.8,
+          aes(x = long, y = lat, size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(mapberg8, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "PuBu", ## <-----------------------if you change this then you need to change it below too
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Bergen Co Line: Minutes Late By Stop 8:00 AM Hour ET")+ 
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="PuBu")) ##<------ here!
+    ))+
+      facet_wrap(~ weekday, ncol=7)+mapTheme2()
+
+    ###  BERG 12pm ~~
+
+
+bergMAP12<- pBERG+geom_point(data = mapberg12,
+                        shape=21, color= 'grey10', alpha = 0.8,
+          aes(x = long, y = lat, size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(mapberg12, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "PuBu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Bergen Co Line: Minutes Late By Stop 12:00 PM Hour ET")+ 
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="PuBu"))
+    ))+
+      facet_wrap(~ weekday, ncol=7)+mapTheme2()
+
+
+
+
+    ### GLAD Map 8 ~~~ 
+
+
+
+
+gladMAP8<- pGLAD + geom_point(data = mapglad8, shape=21, color= 'grey10', alpha = 0.8,
+          aes(x = long, y = lat, size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(mapglad8, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "PuBu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Gladstone Branch: Minutes Late By Stop 8:00 AM Hour ET")+
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="PuBu"))
+    ))+
+      facet_wrap(~ weekday, ncol = 5)+mapTheme2()
+
+
+
+
+
+gladMAPnoon<- pGLAD + geom_point(data = mapglad12,
+          shape=21, color= 'grey10', alpha = 0.8,
+          aes(x = long, y = lat, size = q5(lateM),
+              fill= q5(lateM)))+
+  scale_size_manual(name = "Minutes Late",
+                    labels = qBr(mapglad12, "lateM"),
+                     values= c(1,2,3,4,5))+
+  scale_fill_brewer(
+    type = "seq",
+    palette = "PuBu",
+    direction = 1,
+    aesthetics = "fill", 
+    guide= "none"
+  )+
+  labs(title = "Gladstone Branch: Minutes Late By Stop 12:00 PM Hour ET")+ 
+       #subtitle = "By Tract, Boston 2013-2018",
+       #caption = "Figure 3.1")+
+  guides(size = guide_legend(override.aes = list(fill = brewer.pal(5, name="PuBu"))
+    ))+
+      facet_wrap(~ weekday, ncol = 5)+mapTheme2()
+
+```
+
+```{r LAGPLOTS}
+###### LAG PLOTS -----
+
+
+
+## GLAD CON'T FEATS
+
+
+
+
+gladFEATdata <-glad.weather.panel%>%
+  filter(week == 2) %>% dplyr::select( late, 
+                                       #stop_sequence, 
+                                        onestoplag,
+                                        #hour, 
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours) %>%gather(Variable, Value, -late) %>%
+  mutate(Variable = fct_relevel(Variable, "onestoplag","lagHour", "lag2Hours",  "lag3Hours"))
+
+
+gladFEATcorrelation <-
+  group_by(gladFEATdata, Variable) %>%
+    summarize(correlation = round(cor(Value, late, use = "complete.obs"), 2)) 
+
+
+#93afdc
+
+
+gladFEATplot <-ggplot(gladFEATdata, aes(Value,late)) +
+  geom_point(size = 0.1, color="#93afdc") +
+  geom_text(data = gladFEATcorrelation, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "#a81010") +
+  facet_wrap(~Variable, ncol = 4, scales = "free") +
+  labs(title = "Gladstone Branch: Train Delays as a Function of Contiuous Variables",
+       subtitle = "One Week in 2019") +
+  plotTheme2()
+
+
+
+
+
+
+
+
+
+## BERG CON'T FEATS
+
+bergFEATdata <-berg.weather.panel%>%
+  filter(week == 2) %>% dplyr::select(late,
+                                        #stop_sequence, 
+                                        onestoplag,
+                                        #hour, 
+                                        #toSigStop, ## the to.Pennbinary var was  colinar but the to isn't IDK why
+                                        lagHour,
+                                        lag2Hours,
+                                        lag3Hours) %>%
+  gather(Variable, Value, -late) %>%
+  mutate(Variable = fct_relevel(Variable, "onestoplag","lagHour", "lag2Hours",  "lag3Hours"))
+
+
+bergFEATcorrelation <-
+  group_by(bergFEATdata, Variable) %>%
+    summarize(correlation = round(cor(Value, late, use = "complete.obs"), 2)) 
+
+
+#93afdc
+
+
+bergFEATplot <-ggplot(bergFEATdata, aes(Value,late)) +
+  geom_point(size = 0.1, color="#93afdc") +
+  geom_text(data = bergFEATcorrelation, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "#a81010") +
+  facet_wrap(~Variable, ncol = 4, scales = "free") +
+  labs(title = "Bergen Co. Line: Train Delays as a Function of Contiuous Variables",
+       subtitle = "One Week in 2019") +
+  plotTheme2()
+
+
+
+### BOTH
+
+plot_grid(gladFEATplot, bergFEATplot, nrow=2, ncol=1 )
+
+
+## these are bad and don't show anything SQRT WIND -----------
+
+plotData.lag <-glad.weather.panel%>%
+  filter(week == 2) %>%
+  dplyr::select(contains("SQRT"), late) %>%
+  gather(Variable, Value, -late) %>%
+  mutate(Variable = fct_relevel(Variable, "SQRTlag1Hour1wind","SQRTlag2Hourswind",
+                                          "SQRTlag3Hoursrain",  "SQRTlag4Hoursrain","SQRTlag12Hoursrain","SQRTlag1dayrain"))
+
+
+correlation.lag <-
+  group_by(plotData.lag, Variable) %>%
+    summarize(correlation = round(cor(Value, late, use = "complete.obs"), 2)) 
+
+
+
+
+
+LAGplot <-ggplot(plotData.lag, aes(Value,late)) +
+  geom_point(size = 0.1) +
+  geom_text(data = correlation.lag, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "#a81010") +
+  facet_wrap(~Variable, ncol = 2, scales = "free") +
+  labs(title = "Train Delays as a Function of SQRT Wind Lag Delays",
+       subtitle = "One Week in 2019") +
+  plotTheme2()
+
+
+
+
+```
+
+```{r bar, fig.width=10, fig.height=12}
+
+
+ #f2fdff
+glad.origin <- glad.weather.panel %>%
+  group_by(from) %>% 
+  summarize(lateness = mean(late)) %>% mutate(from = fct_reorder(from, lateness)) %>%
+    ggplot(aes(lateness, from)) + geom_bar(stat = "identity",  color = NA, fill= "#a81010") +
+      labs(title="Does Lateness Vary by Stop Origin",
+           subtitle="Gladstone Branch",
+           x="Mean seconds late", y="Origin Stop") +
+  scale_y_discrete(expand = expansion(mult = c(.02, .02)))+
+  scale_x_continuous(expand = expansion(mult = c(0, 0.02)))+
+     plotTheme2()
+
+
+
+berg.origin <- berg.weather.panel %>%
+  group_by(from) %>% 
+  summarize(lateness = mean(late)) %>% mutate(from = fct_reorder(from, lateness)) %>%
+    ggplot(aes(lateness, from)) + geom_bar(stat = "identity",  color = NA, fill= "#a81010") +
+      labs(#title="Does Lateness Vary by Stop Origin",
+           subtitle="Bergen Co. Line",
+           x="Mean seconds late", y="Origin Stop") +
+  scale_y_discrete(expand = expansion(mult = c(.02, .02)))+
+  scale_x_continuous(expand = expansion(mult = c(0, 0.02)))+
+     plotTheme2()
+
+
+
+
+plot_grid(glad.origin, berg.origin, nrow=1, align = "h")
+
+
+```

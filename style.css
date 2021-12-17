@@ -1,6 +1,19 @@
 /* Whole document: */
+
+.upper-right-logo {
+  margin-top: 20px;
+  background-image: url("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/logo.png");
+  height: 150px;
+  background-size: contain;
+  background-position: right;
+  background-repeat: no-repeat;
+}
 h1{font-weight: bold;
   font-family: Helvetica;
+}
+#wordart{
+  font-weight: bold;
+  font-size: 60pt;
 }
 body{
   font-family: Helvetica;
