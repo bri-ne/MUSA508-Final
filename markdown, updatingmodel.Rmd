@@ -137,6 +137,9 @@ mapTheme2<-function(base_size = 12, title_size = 16) {
 }
 
 ```
+
+
+
 ```{r rawdata,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 # Data -----------
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
@@ -146,6 +149,10 @@ mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main
 weather.Data <- 
   riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
 ```
+
+
+
+
 ```{r wrangledate,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 njtransitdf <- rbind(jan2019, feb2019, mar2019)
 
@@ -159,6 +166,11 @@ njtransitdf <- njtransitdf %>%
   na.omit(delay_dt)
 
 ```
+
+
+
+
+
 ```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
@@ -166,6 +178,10 @@ stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Fina
 
 stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 ```
+
+
+
+
 ```{r studypanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 train.template <- 
   filter(njtransitdf, week %in% c(1: 10)) %>%
@@ -180,10 +196,18 @@ study.panel <-
               from = unique(train.template$from),
               line= unique(train.template$line))
 ```
+
+
+
 ```{r trainpanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 train.panel <- train.template %>%
   right_join(study.panel)
 ```
+
+
+
+
+
 ```{r weather, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 weather.Panel <-  
   weather.Data %>%
@@ -201,11 +225,16 @@ train.weather.panel <- merge(x=train.panel, y= weather.Panel, by= 'intervalhour'
 
 ```
 
+
+
 ```{r fixna, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
 train.weather.panel[c("late","train_count")][is.na(train.weather.panel[c("late","train_count")])] <- 0 
 
 ```
+
+
+
 ```{r buildingtimelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 lag.df <- train.weather.panel %>%
   group_by(line, intervalhour) %>%
@@ -241,6 +270,8 @@ train.weather.panel.lags[c("lag2Hours","lag3Hours","lag4Hours", "lag12Hours", "l
 
 ```
 
+
+
 ```{r spacelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 stoplag<- njtransitdf %>%
  filter(week %in% c(1: 10)) %>%
@@ -258,6 +289,8 @@ stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][i
 
 train.weather.panel.lags.final <- left_join(train.weather.panel.lags, stoplag, by=c("line", "intervalhour", "from"))
 ```
+
+
 
 ```{r harmonizestationnames, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -298,6 +331,8 @@ train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, tr
 
 ```
 
+
+
 ```{r finalsetup, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 panelnoGEOM <- train.weather.panel.lags.final %>% 
   mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
@@ -322,10 +357,12 @@ panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
   st_as_sf(crs =3424, agr = "constant")
 
 set.seed(2121)
-panelnoGEOMTrain <- filter(panelnoGEOM, week < 2) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
+panelnoGEOMTrain <- filter(panelnoGEOM, week < 9) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
 panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 ```
+
+
 
 ```{r corrplots, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 library(ggcorrplot)
@@ -340,8 +377,10 @@ corrplot <- ggcorrplot(
   type="lower",
   insig = "blank") +  
     labs(title = "Correlation Across Numeric Variables") 
-corrplot
+#corrplot
 ```
+
+
 
 ```{r models}
 Model1<- glm(y2_numeric ~ .,
@@ -372,6 +411,9 @@ Model1<- glm(y2_numeric ~ .,
 #model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
 
 ```
+
+
+
 ```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
 
@@ -409,6 +451,9 @@ ModelcvFit1 <- caret::train(y2 ~ .,
                         metric="ROC", trControl = ctrl)
 ```
 
+
+
+
 ```{r goodnessmetrics}
 
 ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
@@ -425,6 +470,9 @@ ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
   plotTheme2()
 
 ```
+
+
+
 
 ```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
@@ -476,6 +524,10 @@ Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
 
   
 ```
+
+
+
+
 ## Visuals --- SOME OLD SOME STILL USEFUL
 
 ```{r resultsbar}

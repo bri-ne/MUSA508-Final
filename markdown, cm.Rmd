@@ -248,9 +248,9 @@ njtransitdf <- njtransitdf %>%
 ```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
-#stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 
-stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+#stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 ```
 
 ## New Approach- Lines Specific Models
