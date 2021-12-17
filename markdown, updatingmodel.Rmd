@@ -44,8 +44,6 @@ learning to improve commuting. Currently, eNJine can predict whether
 trains will be departing within two minutes of their scheduled departure
 times two hours ahead.
 
-![Michael Scott struggles to get on a moving freight
-train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
 
 **Our model works because we understand how New Jersey transit works.**
 
@@ -189,6 +187,9 @@ mapTheme2<-function(base_size = 12, title_size = 16) {
     strip.text.x = element_text(size = 14, color="#0c0e1d", family="Helvetica"),
     strip.background  = element_rect(fill="#93afdc", color="#93afdc"))
 }
+
+
+
 
 
 
@@ -472,9 +473,15 @@ To determine what categorical features to include, our researchers relied on the
 
 With more investment and computing power, we will be able to improve the accuracy of our model by increasing the specificity of inputs: i.e., building a model that takes the direction a train is travelling into account as well as iterating over shorter time intervals.  
 
+## How We Perform 
+
+By cross-validating, our engineers were able to determine that the beta-model currently correctly predicts whether a train will be late 93 percent of the time. We think that this is pretty good for a beta model. It is, however, worth noting that currently our model is better at predicting when a train is going to be on time than when it is going to be late. 
 
 
-```{r models}
+```{r AnotherPrepSection, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+
+## Model ----
+
 Model1<- glm(y2_numeric ~ .,
                         data=panelnoGEOMTrain %>% 
                           dplyr::select(y2_numeric,
@@ -501,16 +508,9 @@ Model1<- glm(y2_numeric ~ .,
 
 
 
-#model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
-
-```
 
 
-
-```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-
-
-#### Cross Validation 
+## Cross Validation ----
 
 ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
 
@@ -543,12 +543,32 @@ ModelcvFit1 <- caret::train(y2 ~ .,
                           dplyr::select(all_of(Model1.vars), y2), #na.action = na.pass,
                         method="glm", family="binomial",
                         metric="ROC", trControl = ctrl)
+
+
+
+
+## Predictions ----
+
+
+ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
+
+
+
+
+modeltestProbs1 <- 
+  ModelProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .25 , 1, 0)))
+
+
+Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
+
+
+
+
 ```
 
-
-
-
-```{r goodnessmetrics}
+```{r GoodnessViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
 
 ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
   gather(metric, value) %>%
@@ -563,84 +583,56 @@ ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
        caption= " ") +
   plotTheme2()
 
+ModelcvFit1.plot
+
+
 ```
 
 
+Of course, for eNJine to be useful to commuters, it is imperative not only that our engineers have the resources to minimize errors, but also that we balance their directionality when they do occur. If we fail to do this well, eNJine won’t be useful to commuters. Even minor errors can result in commuters missing their trains.  
 
 
-```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+![Michael Scott struggles to get on a moving freight
+train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
 
-### MODELS 
-#### Setting up Predictions FOR Weather, Stoplag, and Hourlag -----
 
-    ## Model 1
+There are various ways to envision the tradeoffs of a logistic model: below we have inculde both a distribution of probabilities as well as an ROC curve.  We have set our threshold to balance the ratio of true positives and true negatives that the model predicts.  
 
-#panelnoGEOMTest$from[panelnoGEOMTest$from == "Secaucus Junction Upper Level"] <- "Secaucus Junction Lower Level"   
 
-ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
-                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
 
-#ModelProbs1[c("Probs")][is.na(ModelProbs1[c("Probs")])] <- 0 ###############I DID A WEIRD THING HERE BECAUSE THERE WERE A TON OF NA'S IN OUR MODELPROBS1 : it has resulted in a severly over fit model.m 
-
-    ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+```{r DistRocViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
 
 
  model1plot<- ggplot(ModelProbs1, aes(x = Probs, fill = as.factor(Outcome))) + 
   geom_density() +
+   geom_vline(xintercept = 0.25,  
+                color = "#93afdc", size=2, alpha=0.5)+
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
   labs(x = "Late Over 2 Mins", y = "Density of probabilities",
        title = "Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       subtitle = "Threshold: 0.25", 
        caption= " ") +
   theme(strip.text.x = element_text(size = 18),
         legend.position = "none")+plotTheme2()
 
-  
-ModelProbs1.thresholds <- 
-  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
-                    predictedProbs = Probs)
-
-ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .39
-
-modeltestProbs1 <- 
-  ModelProbs1 %>%
-  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .39 , 1, 0)))
-
-
-Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
-
 
 Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
   geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+     geom_vline(xintercept = 0.25,  
+                color = "#93afdc", size=2, alpha=0.5)+
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
   labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(Modelauc1[1], digits=3)) )+plotTheme2()
 
-  
-```
 
+plot_grid(model1plot, Modelroc.1, align = "h")
+```
 
 
 
 ## Visuals --- SOME OLD SOME STILL USEFUL
 
-
-```{r corrplots, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-library(ggcorrplot)
-
-numericVars <- panelnoGEOM%>%dplyr::select(all_of(Model1.vars), y2_numeric)%>%
-  select_if(is.numeric) %>% na.omit()
-
-corrplot <- ggcorrplot( 
-  round(cor(numericVars), 1), 
-  p.mat = cor_pmat(numericVars),
-  colors = c("#260a03", "white", "#a81010"),
-  type="lower",
-  insig = "blank",
-  lab = TRUE) +  
-    labs(title = "Correlation Across Numeric Variables") 
-#corrplot
-```
 
 
 
@@ -665,47 +657,6 @@ resutlsbar <- gladbergthresh%>%
 
 resultsbar
 
-
-
-
-catvars<-panelnoGEOM%>% dplyr::select(y2, #from,
-                             line,
-                             weekday, 
-                             tuesWed.binary,
-                             friWed.binary)%>%
-  gather(Variable, value, -y2)%>%
-  count(Variable, value, y2)%>%
-  ggplot(., aes(value, n, fill=y2))+
-  geom_bar(position="dodge", stat = "identity")+
-  facet_wrap(~Variable, scales="free")+
-  scale_fill_manual(values=palette2)+
-  labs(x="y", y="Value",
-       title = "Feature Associations with the Likelihood of a Train Late More Than 2 Minutes",
-       subtitle = "All Catagorical Feats",
-       caption= " ")+
-  theme(legend.position = "bottom", axis.text.x=element_text(angle=45, hjust=1))+plotTheme2()
-
-catvars
-
-
-numvars<- panelnoGEOM%>%dplyr::select(y2, total_departures,
-                                        hour,
-                                        onestoplag, 
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        sqrtlag3Hours,
-                                        lag3Hourstemp) %>%
-  gather(Variable, value, -y2) %>%
-  ggplot() + 
-  geom_density(aes(value, color=y2), fill = "transparent") + 
-  facet_wrap(~Variable, scales = "free") +
-  scale_color_manual(values = palette2) +
-  labs(title = "Feature Distributions with the Likelihood of a Train Late More Than 2 Minutes",
-       subtitle = "All Numeric Outcomes",
-       caption= " ") +
-  theme(legend.position = "bottom")+plotTheme2()
-
-numvars
 
 
 
@@ -1084,7 +1035,123 @@ panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 
 
+```{r models, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
+
+Model1<- glm(y2_numeric ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        total_departures,
+                                        #from,
+                                        hour,
+                                        line,
+                                        #lag1week,
+                                        weekday,
+                                        #lag1day,
+                                        #toPenn.binary, 
+                                        #tuesWed.binary, 
+                                        #friWed.binary,
+                                        #toSigStop,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        onestoplag,
+                                        #sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        #sqrtlag4Hours,
+                                        #sqrtlag1week,
+                                        lag3Hourstemp),  
+                        family="binomial" (link="logit"))
+
+
+
+model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
+
+model1summary.table
+
+```
+
+
+
+```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+#### Cross Validation 
+
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+##### Model 1-
+
+
+Model1.vars <- colnames(panelnoGEOMTrain %>% 
+                          dplyr::select(total_departures,
+                                        #from,
+                                        hour,
+                                        line,
+                                        #lag1week,
+                                        weekday,
+                                        #lag1day,
+                                        #toPenn.binary, 
+                                        #tuesWed.binary, 
+                                        #friWed.binary,
+                                        #toSigStop,
+                                        onestoplag,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        #sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        #sqrtlag4Hours,
+                                        #sqrtlag1week,
+                                        lag3Hourstemp))
+
+ModelcvFit1 <- caret::train(y2 ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(all_of(Model1.vars), y2), #na.action = na.pass,
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+```
+
+
+
+
+```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+### MODELS 
+#### Setting up Predictions FOR Weather, Stoplag, and Hourlag -----
+
+    ## Model 1
+
+#panelnoGEOMTest$from[panelnoGEOMTest$from == "Secaucus Junction Upper Level"] <- "Secaucus Junction Lower Level"   
+
+ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
+
+#ModelProbs1[c("Probs")][is.na(ModelProbs1[c("Probs")])] <- 0 ###############I DID A WEIRD THING HERE BECAUSE THERE WERE A TON OF NA'S IN OUR MODELPROBS1 : it has resulted in a severly over fit model.m 
+
+    ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  
+ModelProbs1.thresholds <- 
+  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .30
+
+modeltestProbs1 <- 
+  ModelProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .25 , 1, 0)))
+
+
+Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
+
+
+Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(Modelauc1[1], digits=3)) )+plotTheme2()
+
+  
+```
 
 
 
