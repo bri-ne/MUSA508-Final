@@ -16,53 +16,39 @@ editor_options:
     wrap: 72
 ---
 
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri(file.path(R.home("doc"), "html", "logo.png")), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;')
+```
 
-
-![eNJine
-Logo](https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/otherimagesMD/enjine.jpg)
 
 
 # ENGINEERING A BETTER COMMUTE
 
-If you have ever felt like New Jersey trains needed work, you are not
-wrong. In January 2019, stations across the New Jersey transit system
-experienced the equivalent of 614 days (about 1 year 8 months)' worth of
-delays.
+<center>
+![crowded train platform](https://static01.nyt.com/images/2018/08/09/nyregion/09njtransit1/merlin_141973050_e60da41c-1e46-4a4b-b59e-f23c41f77251-superJumbo.jpg)
+</center>
 
-![ALT
-TEXT](https://static01.nyt.com/images/2018/08/09/nyregion/09njtransit1/merlin_141973050_e60da41c-1e46-4a4b-b59e-f23c41f77251-superJumbo.jpg)
+If you have ever felt like NJ Transit needed work, you are not wrong. In January 2019, stations across the New Jersey transit system experienced the equivalent of about 1 year 8 months worth of delays.  
 
-But what if you could know your train was running late before it was
-running late?
+But what if you could know your train was running late before it was running late? 
 
-With eNJine, you can do just that. No more rushing, only to wait. No
-more missing your connection. No more being late. At eNJine, our data
-scientists are dedicated to engineering a better commute for you.
+**At eNJine, we are making this possible.**  
 
-Our beta testing has focused on proving the feasibility of using machine
-learning to improve commuting. Currently, eNJine can predict whether
-trains will be departing within two minutes of their scheduled departure
-times two hours ahead.
-
-
-**Our model works because we understand how New Jersey transit works.**
-
-Below, you can see how train delays vary on days of the week and at
-certain stops. With this and other insight, we dial into exactly what
-causes New Jersey trains to be late, so you don't have to.
-
+No more rushing, only to wait. No more missing your connection. No arriving late to appointments. At eNJine, our data scientists are dedicated to engineering a better commute for you. Our beta testing has focused on proving the feasibility of using machine learning to improve commuting. Currently, eNJine can predict with 93 percent accuracy whether trains will be departing within two minutes of their scheduled departure times using information available two hours ahead. This is proof that it is possible to engineer a better commute.  
 
 
 ## Our Data 
 
 The beauty of our model is that it is simple. It can be easily replicated not only for other NJ Transit lines, but other transit systems worldwide. The model relies solely on data from NJ Transit service and it is the kind of data that transit systems likely already collect. From there, we engineered a few features that are powerful indicators of lateness. For example, the animations above shows how lateness varies not only at each stop, but also at certain times of day.  
 
-[INSERT MAP]
+eNJine's model relies on publicly available data about NJ Transit’s scheduled arrivals and departures (including train line, stop sequence, train id) as well as information about these trains’ actual arrival and departure times. Our data scientists have also incorporated publicly available weather data as well as coordinates of NJ Transit stations. 
 
 
-The engineers at eNJine have spent weeks working to better understand what makes NJ Transit’s commuter rails run late.  
+**Our model works because we understand how New Jersey transit works.** 
 
-
+The engineers at eNJine have spent weeks working to better understand what makes NJ Transit’s commuter rails run late. Below, you can see how train delays vary across days of the week and stops. With these and other insights, we dial into exactly what causes New Jersey trains to be late. 
 
 
 
@@ -193,6 +179,11 @@ mapTheme2<-function(base_size = 12, title_size = 16) {
 
 
 
+
+
+
+
+
 # Data -----------
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_01.csv?token=AVOS24NFX2PEGNUZQUPRNY3BXYPQY")
@@ -223,9 +214,10 @@ njtransitdf <- njtransitdf %>%
 
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
-#stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 
-stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+#stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+
 
 
 
@@ -347,10 +339,6 @@ panelnoGEOM <- train.weather.panel.lags.final %>%
          weekday = weekdays(intervalhour),
          y5_numeric = ifelse(late < minutes(5), 0, 1),
          y5 = ifelse(late < minutes(5), "no", "yes"),
-         tuesWed.binary = ifelse(weekday == "Tuesday"|weekday == "Wednesday", 1, 0),
-         toPenn.binary =  ifelse(to == "New York Penn Station", 1, 0),
-         friWed.binary = ifelse(weekday == "Friday"|weekday == "Wednesday", 1, 0),
-         toSigStop = ifelse(to == "Broadway Fair Lawn"| to == "Mahwah" | to == "Ramsey Main St"| to == "Waldwick", 0, 1),
          week_numeric = as.numeric(week))
 
 panelnoGEOM <- panelnoGEOM %>%
@@ -374,18 +362,23 @@ panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
 
 ```
 
-Below are a series of visualizations showing the way that lateness is distributed across different categories. Lateness varies across lines: the Bergan Co. Line is somewhat more likely than the Gladstone Branch Line to run late. Similarly, the plot of variation in lateness across every day of the week likewise shows that trains tend to be late more or less often on different days of the week and that in general trains run with fewer delays on weekends.
+
+[MAPS]
 
 
-```{r CATvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+Beyond this, our researchers have investigated how various categorical variables influence how lateness is distributed across different categories. 
+
+Lateness varies across lines: the Bergen Co. Line is somewhat more likely than the Gladstone Branch Line to run late. Similarly, the plot of variation in lateness across every day of the week likewise shows that trains tend to be late more or less often on different days of the week and that in general trains run with fewer delays on weekends.  
+
+
+
+```{r CATvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE, fig.width=12, fig.height=6, fig.align='center'}
 
 
 
 catvars<-panelnoGEOM%>% dplyr::select(y2, #from,
                              line,
-                             weekday, 
-                             tuesWed.binary,
-                             friWed.binary)%>%
+                             weekday)%>%
   gather(Variable, value, -y2)%>%
   count(Variable, value, y2)%>%
   ggplot(., aes(value, n, fill=y2))+
@@ -393,7 +386,7 @@ catvars<-panelnoGEOM%>% dplyr::select(y2, #from,
   facet_wrap(~Variable, scales="free")+
   scale_fill_manual(values=palette2)+
   labs(x="y", y="Value",
-       title = "Feature Associations with the Likelihood of a Train Late More Than 2 Minutes",
+       title = "Feature Associations with the Likelihood\nof a Train Late More Than 2 Minutes",
        subtitle = "All Catagorical Feats",
        caption= "Fig.2a")+
   theme(legend.position = "bottom", axis.text.x=element_text(angle=45, hjust=1))+plotTheme2()
@@ -401,10 +394,11 @@ catvars<-panelnoGEOM%>% dplyr::select(y2, #from,
 catvars
 
 ```
+Similarly, our engineers have studied how the distribution of trains being at least two minutes late (or not) corresponds to the values of numeric variables.  
 
+Significant differences in these distributions are apparent at various values. This is particularly clear in the plot for hour as a numeric variable: commuter trains are much more likely to run on time before seven am than afterward (n.b., trains are also more likely to run on time later in the day as well: future versions of the model might also include a categorical variable to further dial in on this variation). Likewise, trains are much less likely to depart late when there are fewer departures per hour. Finally, there are several plots representing a temporal lag of lateness in the transit system as well as plots of the square root of those lags; while these plots look similar, the plots of the roots show clearer variation, and these features will ultimately be more useful in developing eNJine’s model.  
 
-
-```{r NUMvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+```{r NUMvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE, fig.width=12, fig.height=10, fig.align='center'}
 
 numvars<- panelnoGEOM%>%dplyr::select(y2, total_departures,
                                         hour,
@@ -418,7 +412,7 @@ numvars<- panelnoGEOM%>%dplyr::select(y2, total_departures,
   geom_density(aes(value, color=y2), fill = "transparent") + 
   facet_wrap(~Variable, scales = "free") +
   scale_color_manual(values = palette2) +
-  labs(title = "Feature Distributions with the Likelihood of a Train Late More Than 2 Minutes",
+  labs(title = "Feature Distributions with the Likelihood\nof a Train Late More Than 2 Minutes",
        subtitle = "All Numeric Outcomes",
        caption= "Fig.2b") +
   theme(legend.position = "bottom")+plotTheme2()
@@ -430,53 +424,21 @@ numvars
 
 ```
 
+**Our model accounts for lateness across the system.**  
 
+Our engineers created features for the model to represent how behind schedule trains on each line were running at the same time during the week prior (lag1Week) and the day before (lag1Day) as well as earlier that day (lag2hours, lag3hours, etc.). These relationships are not linear, and so the square roots of these spatial lags are incorporated into the model.  
 
-
-## NEED TO ADD TEXT for d. What is the spatial or space/time process?
+Our engineers also designed a feature to represent lateness at nearby stops earlier in the day (onestopearlieron, twostopearlieron). Their approach to engineering this feature relied on information about individual departures and delays. Having this data allowed our engineers to create spatial lags before aggregating these delays to the interval hour and performing a temporal lag. This provides more specific information about how the system is running than the simple temporal lag and can likely act as a stand in for information about track malfunctions, etc.  
 
 
 ## Our Approach
 
 
-Our engineers experimented with a number of approaches before arriving at our final beta model. This model relies on a logistic regression to make binary predictions about whether trains, running on a particular line, within an “interval hours” will be more than two minutes late. We do this with data that is available two hours prior to the scheduled departure time. 
+Our engineers experimented with a number of approaches before arriving at our final beta model. This model relies on a logistic regression to make binary predictions about whether trains, running on a particular line, within “interval hours” will be more than two minutes late. eNJine can do all this using only data available two hours prior to the scheduled departure time. 
 
 Our engineers experimented with building separate models for different lines; ultimately, however, they determined it was possible to achieve similar results by continuing to operate with one model that includes lines as a categorical variable. In the future, our engineers may find it useful to return to this line-specific method: however, the two lines included in our proof-of-concept work operate similarly enough that this is not necessary.  
 
 In order to determine what numeric variables would be most useful for the model, our engineers relied on a correlation plot that demonstrates the relationship between various features.  
-
-```{r CORRvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
-
-
-
-
-numericVars <- panelnoGEOM%>%dplyr::select(all_of(Model1.vars), y2_numeric)%>%
-  select_if(is.numeric) %>% na.omit()
-
-corrplot <- ggcorrplot( 
-  round(cor(numericVars), 1), 
-  p.mat = cor_pmat(numericVars),
-  colors = c("#260a03", "white", "#a81010"),
-  type="lower",
-  insig = "blank",
-  lab = TRUE) +  
-    labs(title = "Correlation Across Numeric Variables") 
-
-corrplot 
-
-```
-
-
-This plot allowed our researchers to determine not only which variables were correlated with lateness, but also give them insight into the interactions between variables. This proved especially useful in choosing which variables to include as our engineers were limited in the computing power available to them and so built a model using fewer features than they might have otherwise.  
-
-To determine what categorical features to include, our researchers relied on their initial exploratory analysis, included above.  
-
-With more investment and computing power, we will be able to improve the accuracy of our model by increasing the specificity of inputs: i.e., building a model that takes the direction a train is travelling into account as well as iterating over shorter time intervals.  
-
-## How We Perform 
-
-By cross-validating, our engineers were able to determine that the beta-model currently correctly predicts whether a train will be late 93 percent of the time. We think that this is pretty good for a beta model. It is, however, worth noting that currently our model is better at predicting when a train is going to be on time than when it is going to be late. 
-
 
 ```{r AnotherPrepSection, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
 
@@ -554,7 +516,11 @@ ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
                          Probs = predict(Model1, panelnoGEOMTest, type="response"))
 
 
+ModelProbs1.thresholds <- 
+  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
 
+ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .30
 
 modeltestProbs1 <- 
   ModelProbs1 %>%
@@ -568,7 +534,47 @@ Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
 
 ```
 
-```{r GoodnessViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+
+
+
+```{r CORRvarViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align='center'}
+
+
+
+
+numericVars <- panelnoGEOM%>%dplyr::select(all_of(Model1.vars), y2_numeric)%>%
+  select_if(is.numeric) %>% na.omit()
+
+corrplot <- ggcorrplot( 
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#260a03", "white", "#a81010"),
+  type="lower",
+  insig = "blank",
+  lab = TRUE) +  
+    labs(title = "Correlation Across Numeric Variables",
+         caption = "Fig.3")+plotTheme2()
+
+corrplot 
+
+```
+
+
+This plot allowed our researchers to determine not only which variables were correlated with lateness, but also give them insight into the interactions between variables. This proved especially useful in choosing which variables to include as our engineers were limited in the computing power available to them and so built a model using fewer features than they might have otherwise.  
+
+To determine what categorical features to include, our researchers relied on their initial exploratory analysis, included above.  
+
+With more investment and computing power, we will be able to improve the accuracy of our model by increasing the specificity of inputs: i.e., building a model that takes the direction a train is travelling into account as well as iterating over shorter time intervals. 
+
+## Our model works
+
+
+By cross-validating, our engineers were able to determine that the beta-model currently correctly predicts whether a train will be late 93 percent of the time. We think that this is pretty good for a beta model. It is, however, worth noting that currently our model is better at predicting when a train is going to be on time than when it is going to be late. 
+
+
+
+
+```{r GoodnessViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align='center'}
 
 ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
   gather(metric, value) %>%
@@ -580,7 +586,7 @@ ModelcvFit1.plot<- dplyr::select(ModelcvFit1$resample, -Resample) %>%
   scale_x_continuous(limits = c(0, 1)) +
   labs(x="Goodness of Fit", y="Count", title="Model 1 Goodness of Fit Metrics",
        subtitle = "Across-fold mean reprented as dotted lines",
-       caption= " ") +
+       caption= "Fig.4") +
   plotTheme2()
 
 ModelcvFit1.plot
@@ -589,18 +595,15 @@ ModelcvFit1.plot
 ```
 
 
-Of course, for eNJine to be useful to commuters, it is imperative not only that our engineers have the resources to minimize errors, but also that we balance their directionality when they do occur. If we fail to do this well, eNJine won’t be useful to commuters. Even minor errors can result in commuters missing their trains.  
-
-
-![Michael Scott struggles to get on a moving freight
-train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
-
-
-There are various ways to envision the tradeoffs of a logistic model: below we have inculde both a distribution of probabilities as well as an ROC curve.  We have set our threshold to balance the ratio of true positives and true negatives that the model predicts.  
+Of course, for eNJine to be useful to commuters, it is imperative not only that our engineers have the resources to minimize errors, but also that we balance their directionality when they do occur. If we fail to do this well, eNJine won’t be useful to commuters. Even minor errors can cause problems and result in commuters missing their trains (if we say a train will be late and it isn’t) or their connections (if we say a train won’t be late and it is).  
 
 
 
-```{r DistRocViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+There are various ways to envision the trade offs of a logistic model: below we have included both a distribution of probabilities as well as an ROC curve.  
+
+
+
+```{r DistRocViz, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE,fig.width=12, fig.height=8, fig.align='center'}
 
 
  model1plot<- ggplot(ModelProbs1, aes(x = Probs, fill = as.factor(Outcome))) + 
@@ -610,9 +613,9 @@ There are various ways to envision the tradeoffs of a logistic model: below we h
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
   labs(x = "Late Over 2 Mins", y = "Density of probabilities",
-       title = "Model 1: Distribution of Predicted Probabilities by Actual Outcome",
+       title = "Model 1: Distribution of Predicted\nProbabilitiesby Actual Outcome",
        subtitle = "Threshold: 0.25", 
-       caption= " ") +
+       caption= "Fig.5") +
   theme(strip.text.x = element_text(size = 18),
         legend.position = "none")+plotTheme2()
 
@@ -631,27 +634,18 @@ plot_grid(model1plot, Modelroc.1, align = "h")
 
 
 
-## Visuals --- SOME OLD SOME STILL USEFUL
+In useful ways, these plots demonstrate the trade offs that eNJine’s data scientists are forced to make to turn a probabilistic measure of a train being at least two minutes late into a useful binary answer for commuters. Below, we illustrate our errors in our predictions using a 0.25 threshold.  
 
 
+```{r resultsbar, include=TRUE, echo=TRUE, results='hide', warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align='center'}
 
+thresh <- ModelProbs1.thresholds%>%filter(Threshold == .25)%>%dplyr::select(contains("Rate"), Accuracy)%>%gather(Variable, Value)
 
-```{r resultsbar}
-
-
-gladthresh <- gladtestProbs5.thresholds%>%filter(Threshold == .47)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Gladstone Branch") %>%gather(Variable, Value, -line)
-
-bergthresh<- bergtestProbs4.thresholds%>%filter(Threshold == .56)%>%dplyr::select(contains("Rate"), Accuracy)%>%mutate(line="Bergen Co. Line") %>%gather(Variable, Value, -line)
-
-gladbergthresh<-rbind(gladthresh, bergthresh)
-
-
-resutlsbar <- gladbergthresh%>%
-    ggplot(aes(Variable, Value, fill = line), colour= "white") +
-      geom_bar(aes(fill = line), position = "dodge", stat = "identity") +
-      scale_fill_manual(values = palette2b) +
+resultsbar <- thresh%>%
+    ggplot(aes(Variable, Value), fill = "#260a03",  colour= "white") +
+      geom_bar( position = "dodge", stat = "identity", fill = "#260a03") +
       labs(title="Model Results",
-           #subtitle = " ", 
+           caption = "Fig.6", 
            x = "Outcome",y = "Rate") +
       plotTheme2() + theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom") 
 
@@ -662,25 +656,34 @@ resultsbar
 
 ```
 
+Currently, our model is likely to generate false negatives, predicting a train will be late when it is not, than it is to generate false positives predicting a train will be on-time, when it will really be late. At eNJine we believe that tradeoff is worthwhile. As a result, commuters may arrive on time only to have to wait when we have told them they will not have to, but we believe that is better than having the errors in the other direction—which would result in them missing their train entirely.  
 
 
+## Our engineers are always making our model better.  
 
+For this proof-of-concept report, our scope was limited to just two lines on New Jersey Transit: the Bergen Co. Line and the Gladstone Branch. Obviously, this tool is only helpful if you are a commuter on one of those two lines, so in future iterations of this project it would be wise to include all the lines.  
 
+In terms of powerful features, we were surprised by how little weather impacted the models. It would be useful to identify other external factors that impact train delays. Our engineers are interested in including public health data in future versions of the model, as they believe this may act as a useful proxy for worker absenteeism (likewise: drinking holidays). Future models may also be improved by incorporating information about specific models of trains as well as planned maintenance and service disruptions.  
 
+Additionally, our current product incorporates a few different lag features, one of which is based on whole hour intervals. We recognize that that may not be the best approach in engineering a time-based lag for New Jersey Transit, but we simply lack the computing power to model shorter intervals. Similarly, we were unable to incorporate a significant route direction feature, NJ train interaction with freight lines, and employee attendance.  
+
+#### Don't be this guy. Use eNJine.
+
+<center>
+![Michael Scott struggles to get on a moving freight
+train](https://thumbs.gfycat.com/AngelicComplexBoutu-size_restricted.gif)
+</center>
 
 
 
 # Code Library
 
 
-
-
-```{r initial, include=FALSE, echo=TRUE, warning=FALSE, message=FALSE, results='hide'}
+```{r codelibrary, eval=FALSE, results='hide'}
 
 
 # Libraries -----------------
 library(tidyr)
-library(ggcorrplot)
 library(dplyr)
 library(lubridate)
 library(sf)
@@ -704,6 +707,7 @@ library(RColorBrewer)
 library(ggmap)  
 library(maps)
 library(mapdata)
+library(ggcorrplot)
 
 
 
@@ -805,24 +809,25 @@ mapTheme2<-function(base_size = 12, title_size = 16) {
 
 
 
-```
 
 
 
-```{r rawdata,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-# Data -----------
+
+
+
+# RawData -----------
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 jan2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_01.csv?token=AVOS24NFX2PEGNUZQUPRNY3BXYPQY")
 feb2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_02.csv?token=AVOS24PUUJDM2PW36N5T6K3BXYPQ4")
 mar2019 <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/data/2019_03.csv?token=AVOS24MRII4RKEMYGNWWUSDBXYPQ6")
 weather.Data <- 
   riem_measures(station = "EWR", date_start = "2019-01-01", date_end = "2019-05-01")
-```
 
 
 
 
-```{r wrangledate,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+# Warngledate ----
 njtransitdf <- rbind(jan2019, feb2019, mar2019)
 
 
@@ -834,21 +839,28 @@ njtransitdf <- njtransitdf %>%
          week = week(intervalhour)) %>%
   na.omit(delay_dt)
 
-```
 
 
-```{r stations,  warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+
+
+# Stations ----
+
 stoplocations <- read.csv("https://raw.githubusercontent.com/bri-ne/MUSA508-Final/main/Rail_Stations_of_NJ_Transit.csv?token=AVSVPEVU7X6RXZP3RNOK2CLBW7VZO")
 
-#stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
+stoplocations <- stoplocations %>%rename(X = "ï..X")%>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 
-stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
-```
-
+#stoplocations <- stoplocations %>%st_as_sf(coords = c("X", "Y"), crs =3424, agr = "constant") 
 
 
 
-```{r studypanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+
+
+# StudyPanel ----
+
 train.template <- 
   filter(njtransitdf, week %in% c(1: 10)) %>%
   filter(line == "Bergen Co. Line " | line == "Gladstone Branch")%>%
@@ -861,18 +873,23 @@ study.panel <-
   expand.grid(intervalhour = unique(train.template$intervalhour), 
               from = unique(train.template$from),
               line= unique(train.template$line))
-```
 
 
 
-```{r trainpanel, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+# TrainPanel ----
+
+
 train.panel <- train.template %>%
   right_join(study.panel)
-```
 
 
 
-```{r weather, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+# Weather  ----
+
 weather.Panel <-  
   weather.Data %>%
     mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>% 
@@ -887,19 +904,17 @@ weather.Panel <-
 
 train.weather.panel <- merge(x=train.panel, y= weather.Panel, by= 'intervalhour', all.x= T)
 
-```
-
-
-
-```{r fixna, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
 train.weather.panel[c("late","train_count")][is.na(train.weather.panel[c("late","train_count")])] <- 0 
 
-```
 
 
 
-```{r buildingtimelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+
+# Building Time Lags ----
+
+
 lag.df <- train.weather.panel %>%
   group_by(line, intervalhour) %>%
   summarise(avg_late = mean(late),
@@ -932,11 +947,12 @@ train.weather.panel.lags = merge(train.weather.panel, lag.df, by=c("line", "inte
 train.weather.panel.lags[c("lag2Hours","lag3Hours","lag4Hours", "lag12Hours", "lag1day", "lag1week",
                            "sqrtlag2Hours", "sqrtlag3Hours", "sqrtlag4Hours", "sqrtlag12Hours", "sqrtlag1day", "sqrtlag1week", "sqrtlag2hourstotal_departures", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag3Hourstemp", "lag3HoursPercipitation")][is.na(train.weather.panel.lags[c("lag2Hours","lag3Hours","lag4Hours", "lag12Hours", "lag1day", "lag1week", "sqrtlag2Hours", "sqrtlag3Hours", "sqrtlag4Hours", "sqrtlag12Hours", "sqrtlag1day", "sqrtlag1week", "sqrtlag2hourstotal_departures", "lag2Hourswind", "lag3Hourswind", "lag4Hourswind", "lag12Hourswind", "lag3Hourstemp", "lag3HoursPercipitation")])] <- 0 
 
-```
 
 
 
-```{r spacelags, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+
+# Space Lags ----
+
 stoplag<- njtransitdf %>%
  filter(week %in% c(1: 10)) %>%
  filter(line == "Bergen Co. Line " | line == "Gladstone Branch")%>%
@@ -952,11 +968,166 @@ stoplag<- njtransitdf %>%
 stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][is.na(stoplag[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")])] <- 0
 
 train.weather.panel.lags.final <- left_join(train.weather.panel.lags, stoplag, by=c("line", "intervalhour", "from"))
+
+
+
+
+
+
+# Final Setup ----
+
+panelnoGEOM <- train.weather.panel.lags.final %>% 
+  mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
+         y2 = ifelse(late < minutes(2), "no", "yes"),
+         lateM = late/60,
+         hour= hour(intervalhour),
+         daynumeric= wday(intervalhour),
+         week = week(intervalhour),
+         weekday = weekdays(intervalhour),
+         y5_numeric = ifelse(late < minutes(5), 0, 1),
+         y5 = ifelse(late < minutes(5), "no", "yes"),
+         week_numeric = as.numeric(week))
+
+panelnoGEOM <- panelnoGEOM %>%
+  mutate(STATION_ID = from) 
+
+panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
+  st_as_sf(crs =3424, agr = "constant")
+
+
+
+panelnoGEOM[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][is.na(panelnoGEOM[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")])] <- 0
+
+
+set.seed(2121)
+panelnoGEOMTrain <- filter(panelnoGEOM, week < 9) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
+panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
+
+
+
+
+
+
+
+## Model ----
+
+Model1<- glm(y2_numeric ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(y2_numeric,
+                                        total_departures,
+                                        #from,
+                                        hour,
+                                        line,
+                                        #lag1week,
+                                        weekday,
+                                        #lag1day,
+                                        #toPenn.binary, 
+                                        #tuesWed.binary, 
+                                        #friWed.binary,
+                                        #toSigStop,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        onestoplag,
+                                        #sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        #sqrtlag4Hours,
+                                        #sqrtlag1week,
+                                        lag3Hourstemp),  
+                        family="binomial" (link="logit"))
+
+
+
+
+
+
+
+## Cross Validation ----
+
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+##### Model 1-
+
+
+Model1.vars <- colnames(panelnoGEOMTrain %>% 
+                          dplyr::select(total_departures,
+                                        #from,
+                                        hour,
+                                        line,
+                                        #lag1week,
+                                        weekday,
+                                        #lag1day,
+                                        #toPenn.binary, 
+                                        #tuesWed.binary, 
+                                        #friWed.binary,
+                                        #toSigStop,
+                                        onestoplag,
+                                        onestopearlieron,
+                                        twostopearlieron,
+                                        #sqrtlag2Hours,
+                                        sqrtlag3Hours,
+                                        #sqrtlag4Hours,
+                                        #sqrtlag1week,
+                                        lag3Hourstemp))
+
+ModelcvFit1 <- caret::train(y2 ~ .,
+                        data=panelnoGEOMTrain %>% 
+                          dplyr::select(all_of(Model1.vars), y2), #na.action = na.pass,
+                        method="glm", family="binomial",
+                        metric="ROC", trControl = ctrl)
+
+
+
+
+
+
+## Predictions ----
+
+
+ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
+                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
+
+
+ModelProbs1.thresholds <- 
+  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
+                    predictedProbs = Probs)
+
+ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .30
+
+modeltestProbs1 <- 
+  ModelProbs1 %>%
+  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .25 , 1, 0)))
+
+
+Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
+
+
+
+
+
+
+
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 I have not included this yet. trying to figure out the best way to get the maps in here.
 
-```{r harmonizestationnames, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
+```{r harmonizestationnames, eval=FALSE, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
 
 
 
@@ -996,165 +1167,6 @@ train.weather.panel.lags.final$to<-replace(train.weather.panel.lags.final$to, tr
 
 
 ```
-
-
-
-```{r finalsetup, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-panelnoGEOM <- train.weather.panel.lags.final %>% 
-  mutate(y2_numeric = ifelse(late < minutes(2), 0, 1),
-         y2 = ifelse(late < minutes(2), "no", "yes"),
-         lateM = late/60,
-         hour= hour(intervalhour),
-         daynumeric= wday(intervalhour),
-         week = week(intervalhour),
-         weekday = weekdays(intervalhour),
-         y5_numeric = ifelse(late < minutes(5), 0, 1),
-         y5 = ifelse(late < minutes(5), "no", "yes"),
-         tuesWed.binary = ifelse(weekday == "Tuesday"|weekday == "Wednesday", 1, 0),
-         toPenn.binary =  ifelse(to == "New York Penn Station", 1, 0),
-         friWed.binary = ifelse(weekday == "Friday"|weekday == "Wednesday", 1, 0),
-         toSigStop = ifelse(to == "Broadway Fair Lawn"| to == "Mahwah" | to == "Ramsey Main St"| to == "Waldwick", 0, 1),
-         week_numeric = as.numeric(week))
-
-panelnoGEOM <- panelnoGEOM %>%
-  mutate(STATION_ID = from) 
-
-panelGEOM <- left_join(panelnoGEOM, stoplocations) %>%
-  st_as_sf(crs =3424, agr = "constant")
-
-
-
-panelnoGEOM[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")][is.na(panelnoGEOM[c("onestoplag", "twostoplag", "onestopearlieron", "twostopearlieron")])] <- 0
-
-
-set.seed(2121)
-panelnoGEOMTrain <- filter(panelnoGEOM, week < 9) #### BRI, YOU MUST CHANGE THIS BACK TO A 9 
-panelnoGEOMTest <- filter(panelnoGEOM, week >= 9)
-
-```
-
-
-
-```{r models, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-
-
-Model1<- glm(y2_numeric ~ .,
-                        data=panelnoGEOMTrain %>% 
-                          dplyr::select(y2_numeric,
-                                        total_departures,
-                                        #from,
-                                        hour,
-                                        line,
-                                        #lag1week,
-                                        weekday,
-                                        #lag1day,
-                                        #toPenn.binary, 
-                                        #tuesWed.binary, 
-                                        #friWed.binary,
-                                        #toSigStop,
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        onestoplag,
-                                        #sqrtlag2Hours,
-                                        sqrtlag3Hours,
-                                        #sqrtlag4Hours,
-                                        #sqrtlag1week,
-                                        lag3Hourstemp),  
-                        family="binomial" (link="logit"))
-
-
-
-model1summary.table <- tbl_regression(Model1, exponentiate = TRUE)
-
-model1summary.table
-
-```
-
-
-
-```{r CROSVAL, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-
-
-#### Cross Validation 
-
-ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
-
-##### Model 1-
-
-
-Model1.vars <- colnames(panelnoGEOMTrain %>% 
-                          dplyr::select(total_departures,
-                                        #from,
-                                        hour,
-                                        line,
-                                        #lag1week,
-                                        weekday,
-                                        #lag1day,
-                                        #toPenn.binary, 
-                                        #tuesWed.binary, 
-                                        #friWed.binary,
-                                        #toSigStop,
-                                        onestoplag,
-                                        onestopearlieron,
-                                        twostopearlieron,
-                                        #sqrtlag2Hours,
-                                        sqrtlag3Hours,
-                                        #sqrtlag4Hours,
-                                        #sqrtlag1week,
-                                        lag3Hourstemp))
-
-ModelcvFit1 <- caret::train(y2 ~ .,
-                        data=panelnoGEOMTrain %>% 
-                          dplyr::select(all_of(Model1.vars), y2), #na.action = na.pass,
-                        method="glm", family="binomial",
-                        metric="ROC", trControl = ctrl)
-```
-
-
-
-
-```{r PREDICTIONS1, warning=FALSE, message=FALSE, include=FALSE, echo=TRUE, results='hide'}
-
-### MODELS 
-#### Setting up Predictions FOR Weather, Stoplag, and Hourlag -----
-
-    ## Model 1
-
-#panelnoGEOMTest$from[panelnoGEOMTest$from == "Secaucus Junction Upper Level"] <- "Secaucus Junction Lower Level"   
-
-ModelProbs1  <- data.frame(Outcome = as.factor(panelnoGEOMTest$y2_numeric),
-                         Probs = predict(Model1, panelnoGEOMTest, type="response"))
-
-#ModelProbs1[c("Probs")][is.na(ModelProbs1[c("Probs")])] <- 0 ###############I DID A WEIRD THING HERE BECAUSE THERE WERE A TON OF NA'S IN OUR MODELPROBS1 : it has resulted in a severly over fit model.m 
-
-    ## MODEL 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  
-ModelProbs1.thresholds <- 
-  iterateThresholds(data=ModelProbs1, observedClass = Outcome, 
-                    predictedProbs = Probs)
-
-ModelProbs1.thresholds<-ModelProbs1.thresholds%>%arrange(Rate_TP,Rate_TN) ## .30
-
-modeltestProbs1 <- 
-  ModelProbs1 %>%
-  mutate(predOutcome  = as.factor(ifelse(ModelProbs1$Probs > .25 , 1, 0)))
-
-
-Modelauc1<-pROC::auc(ModelProbs1$Outcome, ModelProbs1$Probs) #0.9501
-
-
-Modelroc.1<- ggplot(ModelProbs1, aes(d = as.numeric(Outcome), m = Probs)) +
-  geom_roc(n.cuts = 50, labels = FALSE, colour = "#a81010") +
-  style_roc(theme = theme_grey) +
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
-  labs(title = "ROC Curve - Model 1", subtitle = paste("AUC:", round(Modelauc1[1], digits=3)) )+plotTheme2()
-
-  
-```
-
-
-
 
 
 
